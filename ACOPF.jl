@@ -1,0 +1,50 @@
+# modules
+using Pkg;
+if dirname(PROGRAM_FILE) == ""
+    Pkg.activate(".")
+	push!(LOAD_PATH, "./modules")
+else
+    Pkg.activate(dirname(PROGRAM_FILE))
+	push!(LOAD_PATH, string(dirname(PROGRAM_FILE), "/modules"))
+end
+using Ipopt, JuMP, Printf
+using SCACOPFSubproblems
+
+# function to read, solve rectangular OPF and write solution to a given location
+
+function ACOPF(instance_dir::String, solution_dir::String)
+	println("Reading ACOPF instance from "*instance_dir*" ... ")
+    psd = SCACOPFdata(instance_dir)
+	println("Done reading data.")
+    solve_and_save_OPF(psd, solution_dir)
+end
+
+function ACOPF(raw_filename::String, rop_filename::String, solution_dir::String)
+	println("Reading ACOPF instance from " * raw_filename * " and " * rop_filename * " ... ")
+    psd = SCACOPFdata(raw_filename=raw_filename, rop_filename=rop_filename)
+	println("Done reading data.")
+    solve_and_save_OPF(psd, solution_dir)
+end
+
+function solve_and_save_OPF(psd::SCACOPFdata, solution_dir::String)
+	println("Solving basecase using sparse OPF ...")
+	opt = optimizer_with_attributes(Ipopt.Optimizer,
+		                            #"linear_solver" => "ma57",
+		                            "sb" => "yes")
+	solution = solve_basecase(psd, opt)
+	println("Done solving OPF. Objective value: \$", round(solution.base_cost, digits=1),
+		".\nWriting solution to "*solution_dir*" ... ")
+	if !ispath(solution_dir)
+		mkpath(solution_dir)
+	end
+	write_solution(solution_dir, psd, solution)
+	print("done.")
+	return nothing
+end
+
+# if instancedir and solutiondir are given from cmd line -> run rectangular OPF
+if length(ARGS) == 2
+	ACOPF(ARGS[1], ARGS[2]);
+elseif length(ARGS) == 3
+	ACOPF(ARGS[1], ARGS[2], ARGS[3]);
+end

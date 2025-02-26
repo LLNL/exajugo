@@ -1,0 +1,86 @@
+# ExaJuGO: Exascale Julia Grid Optimization
+
+Simple Julia scrips for solving AC power flow, AC optimal power flow, and
+security-constrained AC optimal power flow.
+
+These scripts are intended for experimentation with different (possibly, new)
+methods, formulations, and settings for solving these power system problem.
+Their implementation, therefore, intentionally avoids excessive encapsulation,
+which makes other packages difficult to modify by non-developers.
+
+## Installation
+
+The implementation requires *Julia* 1+. After clonning, issue (from a terminal):
+
+```
+$ git submodule update --init --recursive
+$ julia -e "using Pkg; Pkg.activate(\".\"); Pkg.instantiate()"
+```
+
+from the repository directory to install all dependencies (submodules, Julia
+packages, and Ipopt binaries).
+
+## Usage
+
+### Power flow
+
+To solve AC power flow, issue:
+
+```
+$ julia /path/to/ACPF.jl /path/to/raw/file.raw /path/to/solution/folder
+```
+
+For example, from the repository folder, issuing:
+
+```
+$ julia ACPF.jl ./example_data/case.raw ./example_acpf_solution
+```
+
+would solve the power flow problem for  the 500-bus system in the `example_data`
+directory.
+
+### Optimal power flow
+
+To solve AC optimal power flow, issue:
+
+```
+julia /path/to/ACOPF.jl  /path/to/raw/file.raw /path/to/raw/file.rop /path/to/solution/folder
+```
+
+For example, from the repository folder, issuing:
+
+```
+$ julia ACOPF.jl ./example_data/case.raw  ./example_data/case.rop ./example_acopf_solution
+```
+
+would solve the optimal power flow problem for the 500-bus system in the
+`example_data` directory.
+
+Alternatively, you may specify just the directory where `case.raw` and
+`case.rop` files are located, i.e.,
+
+```
+$ julia ACOPF.jl ./example_data ./example_acopf_solution
+```
+
+which, in this case, would produce the same result as the command above.
+
+## Authors
+
+ExaJuGO is written by Ignacio Aravena (aravenasolis1@llnl.gov), Nai-Yuan Chiang
+(chiang7@llnl.gov), and Cosmin G. Petra (petra1@llnl.gov) from LLNL.
+
+## License
+
+ExaJuGO is distributed under the terms of both the MIT license. See [LICENSE](LICENSE) for
+details. All new contributions must be made under the MIT license.
+
+## Acknowledgments
+
+ExaJuGO has been developed under the financial support of:
+
+* U.S. Department of Energy, Office of Advanced Scientific Computing Research (ASCR):
+  Exascale Computing Program (ECP) and Applied Math Program.
+* U.S. Department of Energy, Advanced Research Projects Agency-Energy (ARPA‑E).
+
+LLNL-CODE-2002985
