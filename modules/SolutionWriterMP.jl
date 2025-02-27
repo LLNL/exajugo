@@ -165,7 +165,7 @@ function writesolutionBid(OutDir::String, MVAbase::Float64, N::T, SSh::T, G::T, 
 
 	
 	bcsn = MVA(MVAbase, N[1], SSh[1], b_s[1,:])
-	f = open(OutDir * "/solutionBid_$(timestep[end])h_M10TOZ$(Day)D$(RatioBidding).txt", "w")
+	f = open(OutDir * "/solutionBid_$(timestep[end])h_M10OZ$(Day)D$(RatioBidding).txt", "w")
 	# f = open(OutDir * "/solutionBid_$(lpad(timestep[end],2,"0")).txt", "w")
 	@printf(f, "prodcost(USD), basepen(USD), plantrev(USD), DBratio\n")
 	@printf(f, "%.20f, %.20f, %.20f, %.20f\n", prodcost, basepen, plantrev, DBratio)
@@ -196,7 +196,7 @@ function writesolutionPlant(OutDir::String, N::T, timestep::Vector{Int64}, plant
 	rm(filename2)
 
 
-	CSV.write(OutDir * "/Plantbus_$(timestep[end])h_M10TOZ$(Day)D$(RatioBidding).CSV", PlantbusSol);
+	CSV.write(OutDir * "/Plantbus_$(timestep[end])h_M10OZ$(Day)D$(RatioBidding).CSV", PlantbusSol);
 
 end
 
@@ -247,7 +247,7 @@ function writesolutionAllBuses(OutDir::String, N::T, timestep::Vector{Int64}, pl
 	rm(filename2)
 
 
-	CSV.write(OutDir * "/GLPAllbus_$(timestep[end])h_M10TOZ$(Day)D$(RatioBidding).CSV", AllbusSol);
+	CSV.write(OutDir * "/GLPAllbus_$(timestep[end])h_M10OZ$(Day)D$(RatioBidding).CSV", AllbusSol);
 
 end
 
@@ -342,7 +342,7 @@ function writeloss(OutDir::String, Lloss::T, Gtot::T, eta::T, pline::U, ptran::U
 	PT = CSV.read(filename3, DataFrame)
 	rm(filename3)
 
-	XLSX.writetable(OutDir * "/Loss_$(timestep[end])h_M10TOZ$(Day)D$(RatioBidding).xlsx", overwrite=true,
+	XLSX.writetable(OutDir * "/Loss_$(timestep[end])h_M10OZ$(Day)D$(RatioBidding).xlsx", overwrite=true,
 	Loss = (collect(DataFrames.eachcol(LossSol)), DataFrames.names(LossSol)),
 	PLine = (collect(DataFrames.eachcol(PL)), DataFrames.names(PL)),
 	PTran = (collect(DataFrames.eachcol(PT)), DataFrames.names(PT)),
@@ -350,7 +350,7 @@ function writeloss(OutDir::String, Lloss::T, Gtot::T, eta::T, pline::U, ptran::U
 	Tactive = (collect(DataFrames.eachcol(Taconst)),DataFrames.names(Taconst))
 	)
 
-	# CSV.write(OutDir * "/Loss_$(timestep[end])h_M10TOZ$(Day)D$(RatioBidding).CSV", LossSol);
+	# CSV.write(OutDir * "/Loss_$(timestep[end])h_M10OZ$(Day)D$(RatioBidding).CSV", LossSol);
 
 end
 

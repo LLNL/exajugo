@@ -851,10 +851,10 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame, fixe
 		G[!,:CostPi][g] = costcurves[!,:Xi][gctblix[g]]./MVAbase
 		G[!,:CostCi][g] = costcurves[!,:Yi][gctblix[g]]
 
-		# change all zero-cost generator costs 
-		if G[!,:CostCi][g] == [0.0, 0.0]
-			G[!,:CostCi][g] = [0.0, 10000.0]
-		end
+		# # change all zero-cost generator costs 
+		# if G[!,:CostCi][g] == [0.0, 0.0]
+		# 	G[!,:CostCi][g] = [0.0, 10000.0]
+		# end
 	end
 
 	# ---- fixing infeasible initial solutions fixing bad bounds in cost functions ----

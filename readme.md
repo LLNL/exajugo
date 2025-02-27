@@ -14,12 +14,12 @@ All the updated codes are in the ``implementation`` folder
 ``modules`` folder contains all the modules required for excuting
 
 To execute, issue: 
-``julia $PATHTO/driverMPACOPF.jl $INSTDIR $OUTDIR $RatioBidding $Timestep $MethodSolve``
+``julia $PATHTO/driverMPACOPF.jl $INSTDIR $OUTDIR $RatioBidding $Timestep $DayofYear $MethodSolve``
 
-where ``$PATHTO`` is the relative path to driverMPACOPF.jl; ``$INSTDIR`` is the input directory containing all the input files; ``$OUTDIR`` is the output directory; ``$RatioBidding`` is the ratio of bidding plants in the system; ``$Timestep`` is the number of time periods; ``$MethodSolve`` is the method used to solve the problem.
+where ``$PATHTO`` is the relative path to driverMPACOPF.jl; ``$INSTDIR`` is the input directory containing all the input files; ``$OUTDIR`` is the output directory; ``$RatioBidding`` is the ratio of bidding plants in the system; ``$Timestep`` is the number of time periods; ``$DayofYear`` is the index of day out of the year for time series load data; ``$MethodSolve`` is the method used to solve the problem.
 
-Currently, ``$INSTDIR`` should be the path to ``TX2000``; ``$RatioBidding`` is suggested to be within 0 and 0.3; ``Timestep`` is an integer within 1 and 8760 (hours), where 1-24 hrs are tested the most;  
+Currently, ``$INSTDIR`` should be the path to ``TX2000``; ``$RatioBidding`` is suggested to be within 0 and 0.13; ``Timestep`` is an integer within 1 and 8760 (hours), where 1-24 hrs are tested the most;  
 
 ``$MethodSolve`` select how the problem is sloved: PSQP is solving by decomposition where Master is solved using SQP, Preg is solving by decomposition where Master is solved using IPOPT Quasi-Newton with registed user-defined functions and gradient functions; other string input leads to solving sequentially using IPOPT.
 
-The script write files ``solutionBid_$(Timestep)h_$(RatioBidding).txt`` and ``Plantbus_$(Timestep)h_$(RatioBidding).CSV`` in the ``$OUTDIR``.
+The script write files ``solutionBid_$(Timestep)h_M10OZ$(Day)D$(RatioBidding).txt``, ``GLPAllbus_$(Timestep)h_M10OZ$(DayofYear)D$(RatioBidding).CSV`` and ``Plantbus_$(Timestep)h_M10OZ$(DayofYear)D$(RatioBidding).CSV`` in the ``$OUTDIR``.
