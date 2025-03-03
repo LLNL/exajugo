@@ -5,13 +5,13 @@ Implementation of NLP approach for solving multi-period ACOPF with bidding plant
 Julia v1.9 is used for this model. All Julia packages can be installed with Pkg.add(). The model uses IPOPT ma57 solver which requires Coin-HSL license. To install the HSL library properly, follow the instructions in https://github.com/coin-or-tools/ThirdParty-HSL and rename/export path as suggested in IPOPT HSL section https://juliapackages.com/p/ipopt. 
 
 ## Code organization 
-All the updated codes are in the ``implementation`` folder
+All the updated codes are in the ``Demand_Bidding_MPACOPF`` branch
 
 ``TX20000`` folder contains all the inputs needed for case Texas2000
 
 ``tests`` folder contains the driver file and an empty con file
 
-``modules`` folder contains all the modules required for excuting
+``modules`` folder contains all the modules required for executing
 
 To execute, issue: 
 ``julia $PATHTO/driverMPACOPF.jl $INSTDIR $OUTDIR $RatioBidding $Timestep $DayofYear $MethodSolve``
