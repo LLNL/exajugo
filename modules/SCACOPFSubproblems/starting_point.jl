@@ -86,3 +86,24 @@ function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency,
     end
     return x0
 end
+
+function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency)
+    x0 = Dict{Symbol, Array{Float64}}()
+    full_solution = get_full_initial_solution(psd, con)
+    x0[:v_nk] = full_solution[1]
+    x0[:theta_nk] = full_solution[2]
+    x0[:b_sk] = full_solution[3]
+    x0[:p_gk] = full_solution[4]
+    x0[:q_gk] = full_solution[5]
+    x0[:p_lik] = full_solution[6]
+    x0[:q_lik] = full_solution[7]
+    x0[:p_tik] = full_solution[8]
+    x0[:q_tik] = full_solution[9]
+    x0[:pslackm_nk] = full_solution[10]
+    x0[:pslackp_nk] = full_solution[11]
+    x0[:qslackm_nk] = full_solution[12]
+    x0[:qslackp_nk] = full_solution[13]
+    x0[:sslack_lik] = full_solution[14]
+    x0[:sslack_tik] = full_solution[15]
+    return x0
+end

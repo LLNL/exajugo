@@ -231,6 +231,8 @@ end
 # + Generator dispatch: correspondance between generators and dispatch tables
 # + Active power dispatch tables: correspondance between dispatch tables and cost curves
 # + Cost curves: piecewise linear cost curves, described as pairs (production_i, cost_i)
+#				 polynomial cost curves, described as polynomial coeffient (costquad, 
+#				 costlin, cost)
 
 function readROP(filename::AbstractString)
 	
@@ -265,12 +267,22 @@ function readROP(filename::AbstractString)
 		activedsptables = DataFrame()
 	end
 	
-	# piecewise linear cost curves
-	idx = getnextsectionidx(idx, secstarts, secends, headers, "Piece-wise Linear Cost")
-	if secends[idx] >= secstarts[idx]
-		costcurves = readcostcurves(filename, secstarts[idx], secends[idx])
+	if activedsptables[1, :CTYP] == 1
+		# polynomial and exponentail cost curves
+		idx = getnextsectionidx(idx, secstarts, secends, headers, "Polynomial Cost")
+		if secends[idx] >= secstarts[idx]
+			costcurves = readpolynomialcostcurves(filename, secstarts[idx], secends[idx])
+		else
+			costcurves = DataFrame()
+		end
 	else
-		costcurves = DataFrame()
+		# piecewise linear cost curves
+		idx = getnextsectionidx(idx, secstarts, secends, headers, "Piece-wise Linear Cost")
+		if secends[idx] >= secstarts[idx]
+			costcurves = readcostcurves(filename, secstarts[idx], secends[idx])
+		else
+			costcurves = DataFrame()
+		end
 	end
 	
 	# return data frames with ROP data
@@ -321,9 +333,10 @@ function readCON(filename::AbstractString)::DataFrame
 	# read contingency data
 	f = open(filename, "r")
 	labels = String[]
-	ctypes = Symbol[]
-	cons = Contingency[]
+	ctypes = Vector{Vector{Symbol}}()
+	cons = Vector{Vector{Contingency}}()
 	emptycons = String[]
+	con_key::Union{String, Nothing} = nothing
 	while !eof(f)
 		l = readline(f)
 		if l == "END"
@@ -334,30 +347,40 @@ function readCON(filename::AbstractString)::DataFrame
 		end
 		conname = split(l)[2]
 		info = split(readline(f))
-		if info[1] == "REMOVE"		# generator contingency
-			push!(labels, conname)
-			push!(ctypes, :Generator)
-			push!(cons, GeneratorContingency(parse(Int, info[6]), info[3]))
-		elseif info[1] == "OPEN"	# branch contingency
-			push!(labels, conname)
-			push!(ctypes, :Branch)
-			push!(cons, TransmissionContingency(parse(Int, info[5]),
-				parse(Int, info[8]), strip(info[10])))
+		if info[1] != "REMOVE" && info[1] != "OPEN" && info[1] != "END"
+			error("expected REMOVE, OPEN or END, found: ", info[1])
 		elseif info[1] == "END"
 			push!(emptycons, conname)
 			continue
 		else
-			error("expected REMOVE, OPEN or END, found: ", info[1])
-		end
-		l = readline(f)
-		if l != "END"
-			error("expected contingency end line, found: ", l)
+			cons_k = Vector{Contingency}()
+			ctype = Vector{Symbol}()
+			while true
+				if info[1] == "REMOVE"		# generator contingency
+					push!(cons_k, GeneratorContingency(parse(Int, info[6]), info[3]))
+					push!(ctype, :Generator)
+					con_key = info[1]
+				elseif info[1] == "OPEN"	# branch contingency
+					push!(cons_k, TransmissionContingency(parse(Int, info[5]),
+									parse(Int, info[8]), strip(info[10])))
+					push!(ctype, :Branch)
+					con_key = info[1]
+				elseif info[1] == "END"
+					push!(labels, conname)
+					push!(cons, cons_k)
+					push!(ctypes, ctype)
+					break
+				else
+					error("expected REMOVE, OPEN or END, found: ", info[1])
+				end
+				info = split(readline(f))
+			end
 		end
 	end
 	if length(emptycons) > 0
 		@warn(string("contingency registers ", emptycons, " are empty and they will be ignored."))
 	end
-	
+
 	# put contingency data in data frame and return
 	contingencies = DataFrame([labels, ctypes, cons], [:LABEL, :CTYPE, :CON])
 	return contingencies
@@ -474,6 +497,48 @@ function readcostcurves(filename::AbstractString, startline::Int, endline::Int):
 	
 	# place cost curve information in a data frame and return
 	costcurves = DataFrame([lbtl, label, npairs, xi, yi], [:LTBL,:LABEL,:NPAIRS,:Xi,:Yi])
+	return costcurves
+	
+end
+
+## function to read polynomial and exponential cost functions
+
+function readpolynomialcostcurves(filename::AbstractString, startline::Int, endline::Int)::DataFrame
+
+	# collect cost curve information, row-by-row
+	pbtl = Int[]
+	label = String[]
+	cost = Vector{Float64}()
+	costlin = Vector{Float64}()
+	costquad = Vector{Float64}()
+	costexp = Vector{Float64}()
+	expn = Vector{Float64}()
+	f = open(filename, "r")
+	for i = 1:(startline-1)
+		readline(f)
+	end
+	i = startline
+	while i <= endline
+		l = readline(f)
+		header = strip.(split(l, ','))
+		if length(header) != 7
+			error("cost curve should start with a 7 field line, got: ", l)
+		end
+		push!(pbtl, parse(Int, header[1]))
+		push!(label, replace(header[2], "'" => ""))
+		push!(cost, parse(Float64, header[3]))
+		push!(costlin, parse(Float64, header[4]))
+		push!(costquad, parse(Float64, header[5]))
+		push!(costexp, parse(Float64, header[6]))
+		push!(expn, parse(Float64, header[7]))
+
+		i += 1
+	end
+	close(f)
+	
+	# place cost curve information in a data frame and return
+	costcurves = DataFrame([pbtl, label, cost, costlin, costquad, costexp, expn], 
+	             [:PLTBL,:LABEL,:COST,:COSTLIN,:COSTQUAD,:COSTEXP,:EXPN])
 	return costcurves
 	
 end
@@ -688,29 +753,59 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
 	if isnothing(generatordsp)
         @assert isnothing(activedsptables) && isnothing(costcurves)
         @warn "no information on generator costs provided, assuming cost is 0 for all generators"
+		G[!,:COST]     = Vector{Float64}(undef, size(G,1))
+		G[!,:COSTLIN]  = Vector{Float64}(undef, size(G,1))
+		G[!,:COSTQUAD] = Vector{Float64}(undef, size(G,1))
+		for g = 1:size(G, 1)
+			G[g,:COST]     = 0.0
+			G[g,:COSTLIN]  = 0.0
+			G[g,:COSTQUAD] = 0.0
+		end
         G[!,:CostPi] = Vector{Vector{Float64}}(undef, size(G,1))
         G[!,:CostCi] = Vector{Vector{Float64}}(undef, size(G,1))
         for g = 1:size(G, 1)
             G[g,:CostPi] = Float64[G[g,:Plb], G[g,:Pub]]
             G[g,:CostCi] = Float64[0.0, 0.0]
         end
+		# Structure needs the key CTYP
+		G[!, :CTYP] = Vector{Int}(undef, size(G, 1))
+		G[!, :CTYP] .= 2
     else
         gdspix = indexin(string.(G[!,:Bus], ":", G[!,:BusUnitNum]),
             string.(generatordsp[!,:BUS], ":", generatordsp[!,:GENID]))
         gdsptbl = generatordsp[!,:DSPTBL][gdspix]
         gctbl = activedsptables[!,:CTBL][indexin(gdsptbl, activedsptables[!,:TBL])]
-        gctblix = indexin(gctbl, costcurves[!,:LTBL])
-        if any(gctblix .== nothing)
-            error("there seems to be missing cost curves for generators: ",
-                findall(x->x!=0, gctblix .== nothing))
-        end
-        gctblix = convert(Array{Int64}, gctblix)
-        G[!,:CostPi] = Vector{Vector{Float64}}(undef, size(G,1))
-        G[!,:CostCi] = Vector{Vector{Float64}}(undef, size(G,1))
-        for g = 1:size(G, 1)
-            G[g,:CostPi] = costcurves[gctblix[g],:Xi]./MVAbase
-            G[g,:CostCi] = costcurves[gctblix[g],:Yi]
-        end
+		G[!, :CTYP] = Vector{Int}(undef, size(G, 1))
+		G[!, :CTYP] .= activedsptables[1, :CTYP]
+		if G[1, :CTYP] == 1
+			gctblix = indexin(gctbl, costcurves[!,:PLTBL])
+			if any(gctblix .== nothing)
+				error("there seems to be missing cost curves for generators: ",
+					findall(x->x!=0, gctblix .== nothing))
+			end
+			gctblix = convert(Array{Int64}, gctblix)
+			G[!,:COST]     = Vector{Float64}(undef, size(G,1))
+			G[!,:COSTLIN]  = Vector{Float64}(undef, size(G,1))
+			G[!,:COSTQUAD] = Vector{Float64}(undef, size(G,1))
+			for g = 1:size(G, 1)
+				G[g,:COST]     = costcurves[gctblix[g],:COST]
+				G[g,:COSTLIN]  = costcurves[gctblix[g],:COSTLIN]
+				G[g,:COSTQUAD] = costcurves[gctblix[g],:COSTQUAD]
+			end
+		else
+			gctblix = indexin(gctbl, costcurves[!,:LTBL])
+			if any(gctblix .== nothing)
+				error("there seems to be missing cost curves for generators: ",
+					findall(x->x!=0, gctblix .== nothing))
+			end
+			gctblix = convert(Array{Int64}, gctblix)
+			G[!,:CostPi] = Vector{Vector{Float64}}(undef, size(G,1))
+			G[!,:CostCi] = Vector{Vector{Float64}}(undef, size(G,1))
+			for g = 1:size(G, 1)
+				G[g,:CostPi] = costcurves[gctblix[g],:Xi]./MVAbase
+				G[g,:CostCi] = costcurves[gctblix[g],:Yi]
+			end
+		end
     end
 
 	# ---- fixing infeasible initial dispatchs ----
@@ -738,31 +833,39 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
     end
     
 	# ---- fix bad bounds in cost functions ----
-    modifiedcostfunction = Int[]
-    for g = 1:size(G, 1)
-        xi = G[g,:CostPi]
-        yi = G[g,:CostCi]
-        n = length(xi)
-        if xi[1] > G[g,:Plb]
-            yi[1] = yi[1] + (yi[2] - yi[1])/(xi[2] - xi[1])*(G[g,:Plb] - xi[1])
-            xi[1] = G[g,:Plb]
-            push!(modifiedcostfunction, g)
-        end
-        if xi[n] < G[g,:Pub]
-            yi[n] = yi[n] + (yi[n] - yi[n-1])/(xi[n] - xi[n-1])*(G[g,:Pub] - xi[n])
-            xi[n] = G[g,:Pub]
-            push!(modifiedcostfunction, g)
-        end
-    end
-    if length(modifiedcostfunction) > 0
-        unique!(modifiedcostfunction)
-        msg = "generators with inconsistent cost functions: "
-        for g = modifiedcostfunction
-            msg *= string(G[g,:BusUnitNum], "/", G[g,:Bus], " ")
-        end
-        @warn(msg)
-    end
-    modifiedcostfunction = nothing
+	if !(isnothing(generatordsp)) 
+		if activedsptables[1, :CTYP] != 1
+			modifiedcostfunction = Int[]
+			for g = 1:size(G, 1)
+				xi = G[g,:CostPi]
+				yi = G[g,:CostCi]
+				n = length(xi)
+				if xi[1] > G[g,:Plb]
+					yi[1] = yi[1] + (yi[2] - yi[1])/(xi[2] - xi[1])*(G[g,:Plb] - xi[1])
+					xi[1] = G[g,:Plb]
+					push!(modifiedcostfunction, g)
+				end
+				if xi[n] < G[g,:Pub]
+					yi[n] = yi[n] + (yi[n] - yi[n-1])/(xi[n] - xi[n-1])*(G[g,:Pub] - xi[n])
+					xi[n] = G[g,:Pub]
+					push!(modifiedcostfunction, g)
+				end
+			end
+			if length(modifiedcostfunction) > 0
+				unique!(modifiedcostfunction)
+				msg = "generators with inconsistent cost functions: "
+				for g = modifiedcostfunction
+					msg *= string(G[g,:BusUnitNum], "/", G[g,:Bus], " ")
+				end
+				@warn(msg)
+			end
+			modifiedcostfunction = nothing
+		else
+			modifiedcostfunction = nothing		
+		end
+	else
+		modifiedcostfunction = nothing		
+	end
 	
 	# generators -- INL
 	if isnothing(governorresponse)
@@ -771,67 +874,89 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
         G[!,:alpha] = zeros(Float64, size(G, 1))
         G[swing_gens_idx, :alpha] .= 1.0
     else    
-        ggovrespix = indexin(string.(G[!,:Bus], ":", G[!,:BusUnitNum]),
-            string.(governorresponse[!,:I], ":", governorresponse[!,:ID]))
-        if any(ggovrespix .== nothing)
-            error("there seems to be missing participation factors for generators: ",
-                findall(x->x!=0, ggovrespix .== nothing))
-        end
-        ggovrespix = convert(Array{Int64}, ggovrespix)
-        G[!,:alpha] = governorresponse[ggovrespix,:R]
+		if G[1,:CTYP] != 1   
+			ggovrespix = indexin(string.(G[!,:Bus], ":", G[!,:BusUnitNum]),
+				string.(governorresponse[!,:I], ":", governorresponse[!,:ID]))
+			if any(ggovrespix .== nothing)
+				error("there seems to be missing participation factors for generators: ",
+					findall(x->x!=0, ggovrespix .== nothing))
+			end
+			ggovrespix = convert(Array{Int64}, ggovrespix)
+			G[!,:alpha] = governorresponse[ggovrespix,:R]
+		end
     end
 	
 	# contingencies
 	if isnothing(contingencies)
         @warn "no information on contingencies"
-        K = DataFrame(Any[Int64[], Symbol[], Int64[]], [:Contingency,:ConType,:IDout])
+        K = DataFrame(Any[Int64[], Symbol[], Int64[], String[]],
+						[:Contingency,:ConType,:IDout, :Label])
     else
         K = DataFrame(Any[collect(1:size(contingencies, 1)),
-            Vector{Symbol}(undef, size(contingencies, 1)),
-            Vector{Union{Int64, Nothing}}(nothing, size(contingencies, 1))],
-            [:Contingency,:ConType,:IDout])
+			Vector{Vector{Symbol}}(undef, size(contingencies, 1)),
+			Vector{Union{Vector{Int64}, Nothing}}(nothing, size(contingencies, 1)),
+			Vector{String}(undef, size(contingencies, 1))],
+            [:Contingency,:ConType,:IDout,:Label])
         if size(contingencies, 1) > 0
-            missingcon = Int[]
-            gencon = findall(contingencies[!,:CTYPE] .== :Generator)
-            searchstr = string.(collect(gcon.Bus for gcon=contingencies[gencon,:CON]),
-                ":", collect(gcon.Unit for gcon=contingencies[gencon,:CON]))
-            gix = indexin(searchstr, string.(G[!,:Bus], ":", G[!,:BusUnitNum]))
-            for i = 1:length(gencon)
-                if gix[i] != nothing
-                    K[gencon[i],:ConType] = :Generator
-                    K[gencon[i],:IDout] = G[gix[i],:Generator]
-                else
-                    push!(missingcon, gencon[i])
-                end
-            end
-            txcon = findall(contingencies[!,:CTYPE] .== :Branch)
-            searchstr = string.(collect(tcon.FromBus for tcon=contingencies[txcon,:CON]), ":",
-                collect(tcon.ToBus for tcon=contingencies[txcon,:CON]), ":",
-                collect(tcon.Ckt for tcon=contingencies[txcon,:CON]))
-            lix = indexin(searchstr, string.(L[!,:From], ":", L[!,:To], ":", L[!,:CktID]))
-            trix = indexin(searchstr, string.(T[!,:From], ":", T[!,:To], ":", T[!,:CktID]))
-            for i = 1:length(txcon)
-                if lix[i] != nothing
-                    K[txcon[i],:ConType] = :Line
-                    K[txcon[i],:IDout] = L[lix[i],:Line]
-                elseif trix[i] != nothing
-                    K[txcon[i],:ConType] = :Transformer
-                    K[txcon[i],:IDout] = T[trix[i],:Transformer]
-                else
-                    push!(missingcon, txcon[i])
-                end
-            end
-            if length(missingcon) > 0
+            missingcon_k = Int64[]
+            missingcon_el = Int64[]
+			for k = 1:size(contingencies, 1)
+				con_types = Symbol[]
+				idout = Int64[]
+				con_type_k = contingencies[k, :CTYPE]
+				con_k = contingencies[k, :CON]
+				gencon = findall(con_type_k .== :Generator)
+				txcon = findall(con_type_k .== :Branch)
+				searchstr = String[]
+				for el = 1:length(con_type_k)
+					if el in gencon
+						push!(searchstr, string.(con_k[el].Bus, ":", con_k[el].Unit))
+					else
+						push!(searchstr, string.(con_k[el].FromBus, ":", 
+												con_k[el].ToBus, ":", con_k[el].Ckt))
+					end
+				end
+				gix = indexin(searchstr, string.(G[!,:Bus], ":", G[!,:BusUnitNum]))
+				lix = indexin(searchstr, string.(L[!,:From], ":", L[!,:To], ":", L[!,:CktID]))
+				trix = indexin(searchstr, string.(T[!,:From], ":", T[!,:To], ":", T[!,:CktID]))
+				for el = 1:length(con_type_k)
+					if lix[el] != nothing
+						push!(idout, L[lix[el],:Line])
+						push!(con_types, :Line)
+					elseif trix[el] != nothing
+						push!(idout, T[trix[el],:Transformer])
+						push!(con_types, :Transformer)
+					elseif gix[el] != nothing
+						push!(idout, G[gix[el],:Generator])
+						push!(con_types, :Generator)
+					else
+						push!(missingcon_k, k)
+						push!(missingcon_el, el)
+					end
+				end
+				K[k,:IDout] = idout
+				K[k,:ConType] = con_types
+				K[k,:Label] = contingencies[k, :LABEL]
+			end
+			# need to look here later
+            if length(missingcon_k) > 0
                 msg = "found inconsistent contingency registers: "
-                missingcontbl = view(contingencies, missingcon, :)
-                gencon = findall(missingcontbl[!,:CTYPE] .== :Generator)
+                missingcontbl = view(contingencies, missingcon_k, :)
+				missing_type = Symbol[]
+				for i = 1:length(missingcon_el)
+					push!(missing_type, missingcontbl[i, :CTYPE][missingcon_el[i]])
+				end
+                gencon = findall(missing_type .== :Generator)
+				searchstr = String[]
                 if length(gencon) > 0
                     genoff = view(generators, findall(x->x==0, tbranches[!,:STAT]), :)
-                    searchstr = string.(collect(gcon.Bus for gcon=missingcontbl[gencon,:CON]),
-                        ":", collect(gcon.Unit for gcon=missingcontbl[gencon,:CON]))
+					for i = 1:length(gencon)
+	                    push!(searchstr, string.(missingcontbl[gencon[i],:CON][missingcon_el[gencon[i]]].Bus, ":", 
+                        missingcontbl[gencon[i],:CON][missingcon_el[gencon[i]]].Unit))
+					end
                     gix = indexin(searchstr, string.(genoff[!,:I], ":", genoff[!,:ID]))
                     for i = 1:length(gencon)
-                        gcon = missingcontbl[gencon[i],:CON]
+                        gcon = missingcontbl[gencon[i],:CON][missingcon_el[gencon[i]]]
                         msg *= string(" ", missingcontbl[gencon[i],:LABEL], ":",
                             gcon.Bus, "/", gcon.Unit)
                         if gix[i] != nothing
@@ -841,18 +966,19 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
                         end
                     end
                 end
-                txcon = findall(missingcontbl[!,:CTYPE] .== :Branch)
+                txcon = findall(missing_type .== :Branch)
                 if length(txcon) > 0
                     linoff = view(ntbranches, findall(x->x==0, ntbranches[!,:ST]), :)
                     troff = view(tbranches, findall(x->x==0, tbranches[!,:STAT]), :)
-                    searchstr = string.(
-                        collect(tcon.FromBus for tcon=missingcontbl[txcon,:CON]), ":",
-                        collect(tcon.ToBus for tcon=missingcontbl[txcon,:CON]), ":",
-                        collect(tcon.Ckt for tcon=missingcontbl[txcon,:CON]))
+					for i = 1:length(txcon)
+						push!(searchstr, string.(missingcontbl[txcon[i],:CON][missingcon_el[txcon[i]]].FromBus, ":",
+											missingcontbl[txcon[i],:CON][missingcon_el[txcon[i]]].ToBus, ":",
+											missingcontbl[txcon[i],:CON][missingcon_el[txcon[i]]].Ckt))
+					end
                     lix = indexin(searchstr, string.(linoff[!,:I], ":", linoff[!,:J], ":", linoff[!,:CKT]))
                     trix = indexin(searchstr, string.(troff[!,:I], ":", troff[!,:J], ":", troff[!,:CKT]))
                     for i = 1:length(txcon)
-                        tcon = missingcontbl[txcon[i],:CON]
+                        tcon = missingcontbl[txcon[i],:CON][missingcon_el[txcon[i]]]
                         msg *= string(" ", missingcontbl[txcon[i],:LABEL], ":",
                             tcon.FromBus, "/", tcon.ToBus, "/", tcon.Ckt)
                         if lix[i] != nothing || trix[i] != nothing
@@ -864,10 +990,14 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
                 end
                 msg *= ". These contingencies will be ignored while solving SCACOPF."
                 @warn(msg)
-                deleteat!(K, missingcon)
+				for i = size(K, 1):-1:1
+					if 	length(K[i, :ConType]) == 0
+	                	deleteat!(K, i)
+					end
+				end
             end
-            @assert all(K[!,:IDout] .!= nothing)
-            K[!,:IDout] = convert(Vector{Int}, K[!,:IDout])
+			@assert all(K[!,:IDout] .!= nothing)
+			K[!,:IDout] = convert(Vector{Vector{Int}}, K[!,:IDout])
         end
     end
 	

@@ -33,10 +33,10 @@ $ julia /path/to/ACPF.jl /path/to/raw/file.raw /path/to/solution/folder
 For example, from the repository folder, issuing:
 
 ```
-$ julia ACPF.jl ./example_data/case.raw ./example_acpf_solution
+$ julia ACPF.jl ./examples/500bus_example_data/case.raw ./example_acpf_solution
 ```
 
-would solve the power flow problem for  the 500-bus system in the `example_data`
+would solve the power flow problem for the 500-bus system in the `examples/500bus_example_data`
 directory.
 
 ### Optimal power flow
@@ -44,23 +44,50 @@ directory.
 To solve AC optimal power flow, issue:
 
 ```
-julia /path/to/ACOPF.jl  /path/to/raw/file.raw /path/to/raw/file.rop /path/to/solution/folder
+$ julia /path/to/ACOPF.jl  /path/to/raw/file.raw /path/to/raw/file.rop /path/to/solution/folder
 ```
 
 For example, from the repository folder, issuing:
 
 ```
-$ julia ACOPF.jl ./example_data/case.raw  ./example_data/case.rop ./example_acopf_solution
+$ julia ACOPF.jl ./examples/500bus_example_data/case.raw  ./examples/500bus_example_data/case.rop ./example_acopf_solution
 ```
 
 would solve the optimal power flow problem for the 500-bus system in the
-`example_data` directory.
+`examples/500bus_example_data` directory.
 
-Alternatively, you may specify just the directory where `case.raw` and
+Alternatively, you may specify just the directory where `case.raw` and 
 `case.rop` files are located, i.e.,
 
 ```
-$ julia ACOPF.jl ./example_data ./example_acopf_solution
+$ julia ACOPF.jl ./examples/500bus_example_data ./example_acopf_solution
+```
+
+which, in this case, would produce the same result as the command above.
+
+### Security-constrained optimal power flow
+
+To solve security-constrained AC optimal power flow, issue:
+
+```
+$ julia /path/to/ACOPF.jl  /path/to/raw/file.raw /path/to/raw/file.rop /path/to/raw/file.con 
+/path/to/solution/folder
+```
+
+For example, from the repository folder, issuing:
+
+```
+$ julia SCACOPF.jl ./examples/bus_example_data/case.raw  ./examples/500bus_example_data/case.rop ./examples/500bus_example_data/case.con ./example_scacopf_solution
+```
+
+would solve the optimal power flow problem for the 500-bus system in the
+`examples/500bus_example_data` directory.
+
+Alternatively, you may specify just the directory where `case.raw`, `case.rop` and
+`case.con` files are located, i.e.,
+
+```
+$ julia ACOPF.jl ./examples/500bus_example_data ./example_scacopf_solution
 ```
 
 which, in this case, would produce the same result as the command above.

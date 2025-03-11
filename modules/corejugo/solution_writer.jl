@@ -109,7 +109,7 @@ function write_solution(OutDir::String, psd::SCACOPFdata,
                 psd.cont_labels[vsol[i].cont_id])
         write_solution_block(f, psd, vsol[i])
         @printf(f, "--delta section\ndelta(MW)\n%g\n",
-                psd.MVAbase*sol.delta)
+                psd.MVAbase*vsol[i].delta)
     end
     close(f)
     

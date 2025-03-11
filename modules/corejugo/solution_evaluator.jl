@@ -32,10 +32,12 @@ end
 
 function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency)
     p0_g = copy(psd.G[!,:p0])
-    q0_g = copy(psg.G[!,:q0])
+    q0_g = copy(psd.G[!,:q0])
     if length(con.generators_out) > 0
-        p0_g[con.generators_out] .= 0.0
-        q0_g[con.generators_out] .= 0.0
+        for congo in con.generators_out
+            p0_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
+            q0_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
+        end
     end
     sol = ContingencySolution(psd, con, psd.N[!,:v0], psd.N[!,:theta0],
                               psd.SSh[!,:b0], p0_g, q0_g, 0.0, 0.0)
@@ -46,20 +48,22 @@ end
 # function to compute full initial solution for contingency using a base case solution
 
 function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency,
-                                   sol::BasecaseSolution)
-    if hash(psd) != sol.psd_hash
-        error("base case solution does not correspond to power system data.")
-    end
-    p_g = copy(sol.p_g)
-    q_g = copy(sol.q_g)
-    if length(con.generators_out) > 0
-        p_g[con.generators_out] .= 0.0
-        q_g[con.generators_out] .= 0.0
-    end
-    sol = ContingencySolution(psd, con, sol.v_n, sol.theta_n, sol.b_s,
-                              p_g, q_g, 0.0, 0.0)
-    return sol.v_n, sol.theta_n, sol.b_s, p_g, q_g,
-           get_full_solution(psd, sol)...
+    sol::BasecaseSolution)
+if hash(psd) != sol.psd_hash
+error("base case solution does not correspond to power system data.")
+end
+p_g = copy(sol.p_g)
+q_g = copy(sol.q_g)
+if length(con.generators_out) > 0
+for congo in con.generators_out
+p_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
+q_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
+end
+end
+sol = ContingencySolution(psd, con, sol.v_n, sol.theta_n, sol.b_s,
+p_g, q_g, 0.0, 0.0)
+return sol.v_n, sol.theta_n, sol.b_s, p_g, q_g,
+get_full_solution(psd, sol)...
 end
 
 ## auxiliary functions
@@ -169,7 +173,7 @@ function assign_short_circuit_flows(psd::SCACOPFdata,
     # solve model
     JuMP.optimize!(m)
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT && 
-       JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
+       JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT
         error("solver failed to find a feasible solution.")
     end
     
@@ -264,14 +268,18 @@ function get_power_flows_and_slacks(psd::SCACOPFdata, sol::SubproblemSolution)
     if typeof(sol) <: ContingencySolution
         @assert typeof(sol.cont_alt) <: GenericContingency
         if length(sol.cont_alt.lines_out) > 0
-            p_li[sol.cont_alt.lines_out, :] .= 0.0
-            q_li[sol.cont_alt.lines_out, :] .= 0.0
-            sslack_li[sol.cont_alt.lines_out, :] .= 0.0
+            for conalo in sol.cont_alt.lines_out
+                p_li[findall(psd.L[!, :Line] .== conalo), :] .= 0.0
+                q_li[findall(psd.L[!, :Line] .== conalo), :] .= 0.0
+                sslack_li[findall(psd.L[!, :Line] .== conalo), :] .= 0.0
+            end
         end
         if length(sol.cont_alt.transformers_out) > 0
-            p_ti[sol.cont_alt.transformers_out, :] .= 0.0
-            q_ti[sol.cont_alt.transformers_out, :] .= 0.0
-            sslack_ti[sol.cont_alt.transformers_out, :] .= 0.0
+            for conato in sol.cont_alt.transformers_out
+                p_ti[findall(psd.T[!, :Transformer] .== conato), :] .= 0.0
+                q_ti[findall(psd.T[!, :Transformer] .== conato), :] .= 0.0
+                sslack_ti[findall(psd.T[!, :Transformer] .== conato), :] .= 0.0
+            end
         end
     end
     
@@ -384,9 +392,17 @@ end
 
 function get_production_cost(psd::SCACOPFdata, sol::BasecaseSolution)
     c_g = Vector{Float64}(undef, nrow(psd.G))
-    for g = 1:nrow(psd.G)
-        c_g[g] = maximum(sol.p_g[g]*psd.G_epicost_slope[g] +
-                         psd.G_epicost_intercept[g])
+    if psd.G.CTYP[1] == 1
+        for g = 1:nrow(psd.G)
+            c_g[g]  = psd.G.COSTQUAD[g]    * sol.p_g[g]^2 * psd.MVAbase * psd.MVAbase
+                        + psd.G.COSTLIN[g] * sol.p_g[g]   * psd.MVAbase
+                        + psd.G.COST[g]
+        end
+    else
+        for g = 1:nrow(psd.G)
+            c_g[g] = maximum(sol.p_g[g]*psd.G_epicost_slope[g] +
+                            psd.G_epicost_intercept[g])
+        end
     end
     return c_g
 end
