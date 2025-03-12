@@ -77,7 +77,7 @@ $ julia /path/to/ACOPF.jl  /path/to/raw/file.raw /path/to/raw/file.rop /path/to/
 For example, from the repository folder, issuing:
 
 ```
-$ julia SCACOPF.jl ./examples/bus_example_data/case.raw  ./examples/500bus_example_data/case.rop ./examples/500bus_example_data/case.con ./example_scacopf_solution
+$ julia SCACOPF.jl ./examples/500bus_example_data/case.raw  ./examples/500bus_example_data/case.rop ./examples/500bus_example_data/case.con ./example_scacopf_solution
 ```
 
 would solve the optimal power flow problem for the 500-bus system in the
