@@ -433,7 +433,6 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                  psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
                                  psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
 
-        # con = GenericContingency(psd, k)
         x0 = get_primal_starting_point(psd, con)
 
         # contingency variables starting values
@@ -614,7 +613,13 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
     end
     
     # create generic contingency object
-    con = GenericContingency(psd, k)
+    if length(psd.K[k, :ConType]) == 1
+        con = GenericContingency(psd, k)
+    else
+        con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
+                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
+                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
+    end
     
     # call function for generic contingencies
     sol = solve_contingency(psd, con, basecase_solution, NLSolver,
@@ -662,10 +667,6 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     @variable(m, q_tik[t=1:nrow(psd.T), i=1:2], start=x0[:q_tik][t,i])
     @variable(m, psd.SSh[s,:Blb] <= b_sk[s=1:nrow(psd.SSh)] <=
               psd.SSh[s,:Bub], start=x0[:b_sk][s])
-    @variable(m, psd.G[g,:Plb] <= p_gk[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
-              start=x0[:p_gk][g])
-    @variable(m, psd.G[g,:Qlb] <= q_gk[g=1:nrow(psd.G)] <= psd.G[g,:Qub],
-              start=x0[:q_gk][g])
     @variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
               start=x0[:p_gk][g])       # clone of first stage variable
     @variable(m, pslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_nk][n])
@@ -676,6 +677,13 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               start=x0[:sslack_lik][l,i])
     @variable(m, sslack_tik[t=1:nrow(psd.T), i=1:2] >= 0,
               start=x0[:sslack_tik][t,i])
+
+    @variable(m, p_gk[g=1:nrow(psd.G)])
+    @variable(m, q_gk[g=1:nrow(psd.G)])
+    for g=1:nrow(psd.G)
+        set_start_value(p_gk[g], x0[:p_gk][g])
+        set_start_value(q_gk[g], x0[:q_gk][g])
+    end
     
     # fix angle at reference bus to zero
     JuMP.fix(theta_nk[psd.RefBus], 0.0, force=true)
@@ -689,6 +697,9 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     Gonline = if length(con.generators_out)>0 setdiff(1:nrow(psd.G), con.generators_out)
               else 1:nrow(psd.G)
               end
+
+    @constraint(m, [g in Gonline], psd.G[g,:Plb] <= p_gk[g] <= psd.G[g,:Pub])
+    @constraint(m, [g in Gonline], psd.G[g,:Qlb] <= q_gk[g] <= psd.G[g,:Qub])
     @constraint(m, [g in Gonline], p_gk[g] - p_g0[g] <=
                                    psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
     @constraint(m, [g in Gonline], p_g0[g] - p_gk[g] <=
@@ -696,7 +707,10 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     
     # enforce out of service generators
     if length(con.generators_out) > 0
-        JuMP.fix.(p_gk[con.generators_out], 0.0, force=true)
+        for congo in con.generators_out
+            JuMP.fix.(p_gk[findall(psd.G[!, :Generator] .== congo)], 0.0, force=true)
+            JuMP.fix.(q_gk[findall(psd.G[!, :Generator] .== congo)], 0.0, force=true)
+        end
     end
     
     # coupling constraints (relaxed non-anticipativity)

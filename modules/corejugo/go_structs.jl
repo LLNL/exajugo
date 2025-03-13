@@ -254,10 +254,10 @@ mutable struct ContingencySolution <: SubproblemSolution
     psd_hash::UInt64
     
     # information to identify contingency
-    cont_Kidx::Int          # index in K
-    cont_id::Int            # index in contingencies
-    cont_idout::Int         # id of the element out
-    cont_type::Symbol       # contingency type: :Line, :Transformer, :Generator
+    cont_Kidx::Union{Int, Vector{Int}}               # index in K
+    cont_id::Union{Int, Vector{Int}}            # index in contingencies
+    cont_idout::Union{Int, Vector{Int}}              # id of the element out
+    cont_type::Union{Symbol, Vector{Symbol}}          # contingency type: :Line, :Transformer, :Generator
     
     # alternative generic contingency (for running contingencies not in K)
     cont_alt::Union{GenericContingency, Nothing}
