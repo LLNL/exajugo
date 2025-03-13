@@ -49,21 +49,21 @@ end
 
 function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency,
     sol::BasecaseSolution)
-if hash(psd) != sol.psd_hash
-error("base case solution does not correspond to power system data.")
-end
-p_g = copy(sol.p_g)
-q_g = copy(sol.q_g)
-if length(con.generators_out) > 0
-for congo in con.generators_out
-p_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
-q_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
-end
-end
-sol = ContingencySolution(psd, con, sol.v_n, sol.theta_n, sol.b_s,
-p_g, q_g, 0.0, 0.0)
-return sol.v_n, sol.theta_n, sol.b_s, p_g, q_g,
-get_full_solution(psd, sol)...
+    if hash(psd) != sol.psd_hash
+        error("base case solution does not correspond to power system data.")
+    end
+    p_g = copy(sol.p_g)
+    q_g = copy(sol.q_g)
+    if length(con.generators_out) > 0
+        for congo in con.generators_out
+            p_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
+            q_g[findall(psd.G[!, :Generator] .== congo)] .= 0.0
+        end
+    end
+    sol = ContingencySolution(psd, con, sol.v_n, sol.theta_n, sol.b_s,
+                              p_g, q_g, 0.0, 0.0)
+    return sol.v_n, sol.theta_n, sol.b_s, p_g, q_g,
+           get_full_solution(psd, sol)...
 end
 
 ## auxiliary functions
