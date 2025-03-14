@@ -667,6 +667,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     @variable(m, q_tik[t=1:nrow(psd.T), i=1:2], start=x0[:q_tik][t,i])
     @variable(m, psd.SSh[s,:Blb] <= b_sk[s=1:nrow(psd.SSh)] <=
               psd.SSh[s,:Bub], start=x0[:b_sk][s])
+    @variable(m, p_gk[g=1:nrow(psd.G)], start = x0[:p_gk][g])
+    @variable(m, q_gk[g=1:nrow(psd.G)], start = x0[:q_gk][g])
     @variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
               start=x0[:p_gk][g])       # clone of first stage variable
     @variable(m, pslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_nk][n])
@@ -677,13 +679,6 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               start=x0[:sslack_lik][l,i])
     @variable(m, sslack_tik[t=1:nrow(psd.T), i=1:2] >= 0,
               start=x0[:sslack_tik][t,i])
-
-    @variable(m, p_gk[g=1:nrow(psd.G)])
-    @variable(m, q_gk[g=1:nrow(psd.G)])
-    for g=1:nrow(psd.G)
-        set_start_value(p_gk[g], x0[:p_gk][g])
-        set_start_value(q_gk[g], x0[:q_gk][g])
-    end
     
     # fix angle at reference bus to zero
     JuMP.fix(theta_nk[psd.RefBus], 0.0, force=true)
