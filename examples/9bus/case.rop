@@ -23,11 +23,11 @@
  0 / End of Piece-wise Linear Cost Tables, begin Piece-wise Quadratic Cost Tables
  0 / End of Piece-wise Quadratic Cost Tables, begin Polynomial Cost Tables
 1, 'QUADRATIC 1   ', 150.000000, 5.000000, 0.110000, 0.0, 0.0
-2, 'QUADRATIC 2   ', 600.000000, 1.200000, 0.085000, 0.0, 0.0
-3, 'QUADRATIC 3   ', 0.000000, 0.000000, 0.000000, 0.0, 0.0
+2, 'QUADRATIC 2   ', 600.000000, 10.00000, 0.285000, 0.0, 0.0
+3, 'QUADRATIC 3   ', 100.000000, 0.5000000, 0.0500000, 0.0, 0.0
 4, 'QUADRATIC 4   ', 335.000000, 1.000000, 0.122500, 0.0, 0.0
 5, 'QUADRATIC 5   ', 335.000000, 1.000000, 0.122500, 0.0, 0.0
-6, 'QUADRATIC 6   ', 0.000000, 0.000000, 0.000000, 0.0, 0.0
+6, 'QUADRATIC 6   ', 335.000000, 1.000000, 0.122500, 0.0, 0.0
  0 / End of Polynomial Cost Tables, begin Period Reserve data
  0 / End of Period Reserve data, begin Branch Flow Constraint data
  0 / End of Branch Flow Constraint data, begin Interface Flow data

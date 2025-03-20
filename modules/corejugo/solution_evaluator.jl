@@ -48,7 +48,7 @@ end
 # function to compute full initial solution for contingency using a base case solution
 
 function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency,
-    sol::BasecaseSolution)
+                                   sol::BasecaseSolution)
     if hash(psd) != sol.psd_hash
         error("base case solution does not correspond to power system data.")
     end

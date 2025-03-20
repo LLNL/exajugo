@@ -21,7 +21,8 @@ end
 
 function SCACOPF(raw_filename::String, rop_filename::String, con_filename::String,
                      solution_dir::String)
-	println("Reading instance from " * raw_filename * " and " * rop_filename * " ... ")
+	println("Reading instance from " * raw_filename * ", " * rop_filename *
+			"and" * rop_filename *  " ... ")
     psd = SCACOPFdata(raw_filename=raw_filename, rop_filename=rop_filename, 
 						con_filename = con_filename)
 	println("Done reading data.")

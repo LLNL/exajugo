@@ -86,7 +86,7 @@ Alternatively, you may specify just the directory where `case.raw`, `case.rop` a
 `case.con` files are located, i.e.,
 
 ```
-$ julia ACOPF.jl ./examples/500bus ./example_scacopf_solution
+$ julia SCACOPF.jl ./examples/500bus ./example_scacopf_solution
 ```
 
 which, in this case, would produce the same result as the command above.
