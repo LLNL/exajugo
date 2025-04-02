@@ -20,9 +20,9 @@ int main() {
 
     std::string exajugo_path = std::getenv("PATH_TO_EXAJUGO");
 
-    std::string raw_file = (exajugo_path+"/examples/500bus/"+"case.raw");
-    std::string rop_file = (exajugo_path+"/examples/500bus/"+"case.rop");
-    std::string con_file = (exajugo_path+"/examples/500bus/"+"case.con");
+    std::string raw_file = (exajugo_path+"/examples/9bus/"+"case.raw");
+    std::string rop_file = (exajugo_path+"/examples/9bus/"+"case.rop");
+    std::string con_file = (exajugo_path+"/examples/9bus/"+"case.con");
     
     jl_value_t* jl_raw_file = jl_cstr_to_string(raw_file.c_str());
     jl_value_t* jl_rop_file = jl_cstr_to_string(rop_file.c_str());
