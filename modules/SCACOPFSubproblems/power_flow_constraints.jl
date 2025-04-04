@@ -174,5 +174,138 @@ function addpowerflowcons!(m::JuMP.Model,
                       sum(q_ti[Tidxn[tix], Tin[tix]] for tix=1:length(Tidxn)) ==
                       qslackp_n[n] - qslackm_n[n] + q_relax_slack)
     end
+end
+
+function addpowerflowcons!(v_n::AbstractVector, theta_n::AbstractVector,
+                           p_li::AbstractArray, q_li::AbstractArray,
+                           p_ti::AbstractArray, q_ti::AbstractArray,
+                           b_s::AbstractVector,
+                           p_g::AbstractVector, q_g::AbstractVector,
+                           pslackm_n::AbstractVector, pslackp_n::AbstractVector,
+                           qslackm_n::AbstractVector, qslackp_n::AbstractVector,
+                           sslack_li::AbstractArray, sslack_ti::AbstractArray,
+                           psd::SCACOPFdata, con::GenericContingency=GenericContingency();
+                           aux_slack_i::Union{Nothing, AbstractArray}=nothing)
     
+    # check whether we are in base case or a contingency
+    if isequal_struct(con, GenericContingency())
+        RateSymb = :RateBase
+    else
+        RateSymb = :RateEmer
+    end
+        
+    sum_pg = Any[]
+    pd = Vector{Float64}(undef, size(psd.N, 1))
+    gsh = Vector{Float64}(undef, size(psd.N, 1))
+    vn = Vector{Float64}(undef, size(psd.N, 1))
+    gshvn2 = Vector{Float64}(undef, size(psd.N, 1))
+    sum_p_li = Any[]
+    sum_p_ti = Any[]
+    p_relax = Vector{Float64}(undef, size(psd.N, 1))
+    p_mn = Vector{Float64}(undef, size(psd.N, 1))
+    p_pn = Vector{Float64}(undef, size(psd.N, 1))
+
+    sum_qg = Any[]
+    qd = Vector{Float64}(undef, size(psd.N, 1))
+    Bsh = Vector{Float64}(undef, size(psd.N, 1))
+    ssh = Any[]
+    sshvn2 = Any[]
+    sum_q_li = Any[]
+    sum_q_ti = Any[]
+    q_relax = Vector{Float64}(undef, size(psd.N, 1))
+    q_mn = Vector{Float64}(undef, size(psd.N, 1))
+    q_pn = Vector{Float64}(undef, size(psd.N, 1))
+
+    # balance
+    for n = 1:size(psd.N, 1)
+        Lidxn = psd.Lidxn[n]
+        Lin = psd.Lin[n]
+        Tidxn = psd.Tidxn[n]
+        Tin = psd.Tin[n]
+        if isnothing(aux_slack_i)
+            p_relax_slack = 0.0
+            q_relax_slack = 0.0
+        else
+            p_relax_slack = @variable(m); push!(aux_slack_i, p_relax_slack);
+            q_relax_slack = @variable(m); push!(aux_slack_i, q_relax_slack);
+        end
+
+        if length(psd.Gn[n]) == 0
+            push!(sum_pg, NaN)
+            push!(sum_qg, NaN)
+        else
+            push!(sum_pg, JuMP.value(sum(p_g[g] for g in psd.Gn[n])))
+            push!(sum_qg, JuMP.value(sum(q_g[g] for g in psd.Gn[n])))
+        end
+        if length(Lidxn) == 0
+            push!(sum_p_li, NaN)
+            push!(sum_q_li, NaN)
+        else
+            push!(sum_p_li, JuMP.value(sum(p_li[Lidxn[lix], Lin[lix]] for lix=1:length(Lidxn))))
+            push!(sum_q_li, JuMP.value(sum(q_li[Lidxn[lix], Lin[lix]] for lix=1:length(Lidxn)) ))
+        end
+        if length(Tidxn) == 0
+            push!(sum_p_ti, NaN)
+            push!(sum_q_ti, NaN)
+        else
+            push!(sum_p_ti, -JuMP.value(sum(p_ti[Tidxn[tix], Tin[tix]] for tix=1:length(Tidxn))))
+            push!(sum_q_ti, -JuMP.value(sum(q_ti[Tidxn[tix], Tin[tix]] for tix=1:length(Tidxn)) ))
+        end
+        if length(psd.SShn[n]) == 0
+            push!(sshvn2, NaN)
+            push!(ssh, NaN)
+        else
+            push!(sshvn2, -JuMP.value((-psd.N[n,:Bsh] - sum(b_s[s] for s=psd.SShn[n]))*v_n[n]^2))
+            push!(ssh,  JuMP.value(sum(b_s[s] for s=psd.SShn[n])))
+        end
+
+        pd[n] = -psd.N[n,:Pd]
+        gsh[n] = psd.N[n,:Gsh]
+        vn[n] = JuMP.value(v_n[n])
+        gshvn2[n] = -JuMP.value(psd.N[n,:Gsh]*v_n[n]^2)
+        p_relax[n] = p_relax_slack
+        p_mn[n] = JuMP.value(pslackm_n[n])
+        p_pn[n] = JuMP.value(pslackp_n[n])
+    
+        qd[n] = -psd.N[n,:Qd]
+        Bsh[n] = psd.N[n,:Bsh]
+        q_relax[n] = q_relax_slack
+        q_mn[n] = JuMP.value(qslackm_n[n])
+        q_pn[n] = JuMP.value(qslackp_n[n])
+    end
+    write_pf_constraint_info("./PF_constraint", "/power_constraints", psd, sum_pg, pd, gsh, vn, gshvn2, sum_p_li,
+                            sum_p_ti, p_relax, sum_qg, qd, Bsh, ssh, sshvn2, sum_q_li, sum_q_ti, q_relax,
+                            p_mn, p_pn, q_mn, q_pn)
+end
+
+function write_pf_constraint_info(OutDir::String, filename::String, psd::SCACOPFdata, 
+                                sum_pg::Array{Any}, pd::Array{Float64}, gsh::Array{Float64}, 
+                                v_n::Array{Float64},  gshvn2::Array{Float64}, sum_p_li::Array{Any},
+                                sum_p_ti::Array{Any},  p_relax::Array{Float64}, 
+                                sum_qg::Array{Any}, qd::Array{Float64},  Bsh::Array{Float64}, 
+                                ssh::Array{Any},  sshvn2::Array{Any}, 
+                                sum_q_li::Array{Any}, sum_q_ti::Array{Any}, q_relax::Array{Float64},
+                                p_mn::Array{Float64}, p_pn::Array{Float64},
+                                q_mn::Array{Float64}, q_pn::Array{Float64})
+    display(filename)
+    if !ispath(OutDir)
+		mkpath(OutDir)
+	end
+    f = open(OutDir * filename, "w")
+    @printf(f, "--Active power constraint\n")
+    @printf(f, "Bus, sum_pg, pd, gsh, v_n, gshvn2, sum_p_li, sum_p_ti, pslackm_n, pslackp_n, p_relax\n")
+	for n=1:size(psd.N, 1)
+		@printf(f, "%d, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f\n", 
+                psd.N[n,:Bus], sum_pg[n], pd[n], gsh[n], v_n[n], gshvn2[n], sum_p_li[n], sum_p_ti[n], 
+                p_mn[n], p_pn[n], p_relax[n])
+	end
+	
+	# write line section
+    @printf(f, "--Reactive power constraint\n")
+    @printf(f, "Bus, sum_qg, qd, Bsh, Ssh, v_n, BshSshvn2, sum_q_li, sum_q_ti, qslackm_n, qslackp_n, q_relax\n")
+	for n=1:size(psd.N, 1)
+		@printf(f, "%d, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f, %.10f\n", 
+                psd.N[n,:Bus], sum_qg[n], qd[n], Bsh[n], ssh[n], v_n[n], sshvn2[n], sum_q_li[n], sum_q_ti[n],
+                q_mn[n], q_pn[n], q_relax[n])
+	end
 end
