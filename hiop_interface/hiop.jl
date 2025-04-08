@@ -12,16 +12,39 @@ using SCACOPFSubproblems
 include(string(ENV["PATH_TO_EXAJUGO"], "/modules/SCACOPFSubproblems/starting_point.jl"))
 include(string(ENV["PATH_TO_EXAJUGO"], "/modules/corejugo/solution_evaluator.jl"))
 
+include(string(ENV["PATH_TO_TSSLOPE"], "/init.jl"))
 
-function test_9bus()
+# GM model structure
 
-    prob="/p/lustre1/santiago/COSMIN/GITHUB/exajugo/examples/9bus/";
-    rawfile=joinpath(prob,"case.raw"); confile=joinpath(prob,"case.con"); ropfile=joinpath(prob,"case.rop");
+struct TSI_GPmodel
+  GPmodel::Dict{Any,Any}
+  data::Matrix{Float32}
+  TSI::Vector{Float32}
+end
 
-    return load_ACOPF(rawfile, ropfile, confile)
+
+function load_tsmodel(model_file, data_record)
+
+  GPmodel, data, TSI = tsslope_lib.load_model(model_file, data_record);
+
+  return Ref(TSI_GPmodel(GPmodel, data, TSI))
 
 end
 
+function test_model(refmodel)
+
+   TSIGPmodel = refmodel[]
+   println(" Object derefecened successfully! ")
+   return 0;
+
+end
+
+function load_ACOPF_dir(prob)
+
+   opt_data=SCACOPFdata(prob)
+   return Ref(opt_data)
+ 
+end
 
 function load_ACOPF(rawfile, ropfile, confile)
 
