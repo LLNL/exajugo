@@ -33,6 +33,8 @@ include("SCACOPFSubproblems/huber_loss.jl")
 
 # function to solve power flow (assumes x0 gives setpoint)
 
+PRIORITY_BASE = 4.0
+
 function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
     # get primal starting point
@@ -80,7 +82,7 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
                       sslack_li, sslack_ti, psd)
     
     # register Huber-like deviation penalty function
-    scale_factor = 1.0E-3
+    scale_factor = 1/PRIORITY_BASE
     dev = HuberLikePenalty(psd.a[:S] * scale_factor, psd.b[:S] * scale_factor,
                            2 * psd.a[:S] * scale_factor * 0.5 + psd.b[:S] * scale_factor,   
                                                                   # slope at 0.5 pu (e.g., 50MW) is max slope
@@ -113,9 +115,10 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
                                      sum(h(qslackp_n[n]) for n=1:nrow(psd.N)))
     lin_overload_penalty = @NLexpression(m, sum(h(sslack_li[l,i]) for l=1:nrow(psd.L), i=1:2))
     trf_overload_penalty = @NLexpression(m, sum(h(sslack_ti[t,i]) for t=1:nrow(psd.T), i=1:2))
-    violation_penalty = @NLexpression(m, 16.0 * p_bal_penalty + 16.0 * q_bal_penalty +
-                                         4.0 * v_lim_penalty + 
-                                         1.0 * lin_overload_penalty + 1.0 * trf_overload_penalty)
+    violation_penalty = @NLexpression(m, PRIORITY_BASE^2 * p_bal_penalty + 
+                                         PRIORITY_BASE^2 * q_bal_penalty +
+                                         PRIORITY_BASE * v_lim_penalty + 
+                                         lin_overload_penalty + trf_overload_penalty)
     
     # declare objective
     @NLobjective(m, Min, p_g_dev_penalty + violation_penalty)
