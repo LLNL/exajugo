@@ -42,8 +42,9 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     m = Model(NLSolver)
 
     # base case variables
-    @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
-              start=x0[:v_n][n])
+    @variable(m, v_n[n=1:nrow(psd.N)], start=x0[:v_n][n])
+    @variable(m, vslackm_n[n=1:nrow(psd.N)] >= 0, start=0.0)
+    @variable(m, vslackp_n[n=1:nrow(psd.N)] >= 0, start=0.0)
     @variable(m, theta_n[n=1:nrow(psd.N)], start=x0[:theta_n][n])
     @variable(m, p_li[l=1:nrow(psd.L), i=1:2], start=x0[:p_li][l,i])
     @variable(m, q_li[l=1:nrow(psd.L), i=1:2], start=x0[:q_li][l,i])
@@ -68,6 +69,10 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
     # fix angle at reference bus to zero
     JuMP.fix(theta_n[psd.RefBus], 0.0, force=true)
+    
+    # soft voltage bounds
+    @constraint(m, [n=1:nrow(psd.N)], v_n[n] >= psd.N[n,:Vlb] - vslackm_n[n])
+    @constraint(m, [n=1:nrow(psd.N)], v_n[n] <= psd.N[n,:Vub] + vslackp_n[n])
     
     # add power flow constraints
     addpowerflowcons!(m, v_n, theta_n, p_li, q_li, p_ti, q_ti, b_s, p_g, q_g,
@@ -100,14 +105,17 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     register(m, :h, 1, x -> h(x), x -> h_prime(x), x -> h_prime_prime(x))
     
     # collect technical violation penalty terms
+    v_lim_penalty = @NLexpression(m, sum(h(vslackm_n[n]) for n=1:nrow(psd.N)) +
+                                     sum(h(vslackp_n[n]) for n=1:nrow(psd.N)))
     p_bal_penalty = @NLexpression(m, sum(h(pslackm_n[n]) for n=1:nrow(psd.N)) +
                                      sum(h(pslackp_n[n]) for n=1:nrow(psd.N)))
     q_bal_penalty = @NLexpression(m, sum(h(qslackm_n[n]) for n=1:nrow(psd.N)) +
                                      sum(h(qslackp_n[n]) for n=1:nrow(psd.N)))
     lin_overload_penalty = @NLexpression(m, sum(h(sslack_li[l,i]) for l=1:nrow(psd.L), i=1:2))
     trf_overload_penalty = @NLexpression(m, sum(h(sslack_ti[t,i]) for t=1:nrow(psd.T), i=1:2))
-    violation_penalty = @NLexpression(m, p_bal_penalty + q_bal_penalty +
-                                         lin_overload_penalty + trf_overload_penalty)
+    violation_penalty = @NLexpression(m, 16.0 * p_bal_penalty + 16.0 * q_bal_penalty +
+                                         4.0 * v_lim_penalty + 
+                                         1.0 * lin_overload_penalty + 1.0 * trf_overload_penalty)
     
     # declare objective
     @NLobjective(m, Min, p_g_dev_penalty + violation_penalty)
@@ -129,9 +137,11 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
                                  psd.N[psd.G_Nidx[g],:Type] != :SWING)
     
     # aggregate infeasibilities to report them
+    summary[:max_undervoltage] = maximum(JuMP.value.(vslackm_n))
+    summary[:max_overvoltage] = maximum(JuMP.value.(vslackp_n))
     summary[:active_nodal_imbalance] = sum(JuMP.value.(pslackm_n)) + sum(JuMP.value.(pslackp_n))
     summary[:reactive_nodal_imbalance] = sum(JuMP.value.(qslackm_n)) + sum(JuMP.value.(qslackp_n))
-    summary[:branch_overloads] = .5 * sum(JuMP.value.(sslack_li)) + .5 * sum(JuMP.value.(sslack_li))
+    summary[:branch_overloads] = .5 * sum(JuMP.value.(sslack_li)) + .5 * sum(JuMP.value.(sslack_ti))
     
     # return solution
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
