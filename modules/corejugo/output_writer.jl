@@ -83,7 +83,6 @@ end
 
 function write_power_flow(OutDir::String, filename::String, psd::SCACOPFdata, p_li::Matrix{Float64}, 
                                 p_ti::Matrix{Float64}, p_lik::Array{Float64}, p_tik::Array{Float64})
-    print(OutDir * filename)
     f = open(OutDir * filename, "w")
     @printf(f, "--base\n")
     write_power_flow_block(f, psd, p_li, p_ti)
