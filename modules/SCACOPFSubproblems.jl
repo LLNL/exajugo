@@ -150,7 +150,8 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                        recourse_g::T=nothing,   # recourse function gradient
                        recourse_H::T=nothing,   # recourse function hessian
                        previous_solution::Union{Nothing,
-                                                BasecaseSolution}=nothing
+                                                BasecaseSolution}=nothing,
+                       output_dir::Union{Nothing, String} = nothing
                        )::BasecaseSolution where {T <: Union{Nothing, Function}}
     
     # get primal starting point
@@ -256,25 +257,30 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
         error("solver failed to find a feasible solution.")
     end
-
-    output_dir = "./info_dir"
-    filename = "/Basecase_power_flow.txt"
-    write_power_flow(output_dir, filename, psd, JuMP.value.(p_li), JuMP.value.(p_ti))
-
-    # println("Production Cost: " *string(JuMP.value.(production_cost))*"")
-    # println("Basecase Penalty: " *string(JuMP.value.(basecase_penalty))*"")
-    # println("Contingency Penalty: " *string(JuMP.value.(contingency_penalty))*"")
     
     # objective breakdown
     base_cost = JuMP.value(production_cost) +
                 psd.delta*JuMP.value(basecase_penalty)
-    recourse_cost = JuMP.objective_value(m) - base_cost
+    recourse_cost = JuMP.objective_value(m) - base_cost   
 
-    write_slack_info(output_dir, "/ACOPF_slacks.txt", psd,
-                     JuMP.value.(pslackm_n), JuMP.value.(pslackp_n),
-                     JuMP.value.(qslackm_n), JuMP.value.(qslackp_n),
-                     JuMP.value.(sslack_li), JuMP.value.(sslack_ti))
-    
+    # write the information about the system
+    if output_dir !== nothing
+
+        write_power_flow_cons(output_dir, "/Basecase_power_constraints.txt",v_n, theta_n, 
+                                p_li, q_li, p_ti, q_ti, b_s, p_g, q_g, pslackm_n, pslackp_n, 
+                                qslackm_n, qslackp_n, sslack_li, sslack_ti, psd)
+        
+        write_cost(output_dir, "/Basecase_objective.txt", psd, JuMP.value.(production_cost),
+                            JuMP.value.(basecase_penalty))
+
+        write_power_flow(output_dir, "/Basecase_power_flow.txt", psd, JuMP.value.(p_li), JuMP.value.(p_ti))
+        
+        write_slack(output_dir, "/Basecase_slacks.txt", psd,
+                        JuMP.value.(pslackm_n), JuMP.value.(pslackp_n),
+                        JuMP.value.(qslackm_n), JuMP.value.(qslackp_n),
+                        JuMP.value.(sslack_li), JuMP.value.(sslack_ti))
+    end
+
     # return solution
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                             convert(Vector{Float64}, JuMP.value.(b_s)),
@@ -288,7 +294,8 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                                 BasecaseSolution}=nothing,
                        quadratic_relaxation_k::Float64=Inf,
                        minutes_since_base::Float64=1.0,
-                       use_huber_like_penalty::Bool=true
+                       use_huber_like_penalty::Bool=true,
+                       output_dir::Union{Nothing, String} = nothing
                        )::SCACOPFsolution 
 
     # get primal starting point
@@ -576,29 +583,10 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
          error("solver failed to find a feasible solution.")
     end
 
-    for k = 1:nrow(psd.K)
-        con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
-                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
-                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
-        addpowerflowcons!(v_nk[:,k], theta_nk[:,k], p_lik[:,:,k], q_lik[:,:,k], p_tik[:,:,k], 
-                            q_tik[:,:,k], b_sk[:,k],
-                            p_gk[:,k], q_gk[:,k], pslackm_nk[:,k], pslackp_nk[:,k], qslackm_nk[:,k],
-                            qslackp_nk[:,k], sslack_lik[:,:,k], sslack_tik[:,:,k], psd, con)
-    end
-
     # objective breakdown
     base_cost = JuMP.value(production_cost) +
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
-
-    output_dir = "./info_dir"
-    filename = "/EF_power_flow.txt"
-    write_power_flow(output_dir, filename, psd, JuMP.value.(p_li), JuMP.value.(p_ti), 
-                    JuMP.value.(p_lik), JuMP.value.(p_tik))
-
-    # println("Production Cost: " *string(JuMP.value.(production_cost))*"")
-    # println("Basecase Penalty: " *string(JuMP.value.(basecase_penalty))*"")
-    # println("Contingency Penalty: " *string(JuMP.value.(contingency_penalty))*"")
 
     # Intial construction of the SCACOPF solution
     solution = SCACOPFsolution(psd, BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
@@ -619,22 +607,55 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                         0.0, contin_penalty)
         contingency.cont_id = k
         add_contingency_solution!(solution, contingency)
-        println("Contingency "*string(k)*" Penalty: " *string(contin_penalty)*"")   
     end
 
-    write_slack_info(output_dir, "/SCACOPF_slacks.txt", psd,
-                     JuMP.value.(pslackm_n), JuMP.value.(pslackp_n),
-                     JuMP.value.(qslackm_n), JuMP.value.(qslackp_n),
-                     JuMP.value.(sslack_li), JuMP.value.(sslack_ti),
-                     JuMP.value.(pslackm_nk), JuMP.value.(pslackp_nk),
-                     JuMP.value.(qslackm_nk), JuMP.value.(qslackp_nk),
-                     JuMP.value.(sslack_lik), JuMP.value.(sslack_tik))
+    # write the information about the system
+    if output_dir !== nothing
+        if !ispath(output_dir)
+            mkpath(output_dir)
+        end
+
+        cont_pen = Vector{Float64}()
+        quad_pen = Vector{Float64}()
+        for k = 1:nrow(psd.K)
+            
+            if k == 1
+                write_ramp_rate(output_dir, "/SCACOPF_ramp_rate.txt", psd::SCACOPFdata, 
+                                psd.G.Pub .* psd.G.RampRate* minutes_since_base )
+            end
+
+            con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
+                                     psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
+                                     psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
+
+            write_power_flow_cons(output_dir, "/SCACOPF_power_constraints.txt",v_nk[:,k], theta_nk[:,k], 
+                                p_lik[:,:,k], q_lik[:,:,k], p_tik[:,:,k], q_tik[:,:,k], b_sk[:,k],
+                                p_gk[:,k], q_gk[:,k], pslackm_nk[:,k], pslackp_nk[:,k], qslackm_nk[:,k],
+                                qslackp_nk[:,k], sslack_lik[:,:,k], sslack_tik[:,:,k], psd, con, k = k)
+                                
+            push!(cont_pen, JuMP.value(contingency_penalty[k]))
+            push!(quad_pen, JuMP.value(quadratic_relaxation_term[k]))            
+        end
+
+        write_cost(output_dir, "/SCACOPF_objective.txt", psd, JuMP.value.(production_cost),
+                            JuMP.value.(basecase_penalty), cont_pen, quad_pen)
+
+        write_power_flow(output_dir, "/SCACOPF_power_flow.txt", psd, JuMP.value.(p_li), JuMP.value.(p_ti), 
+                        JuMP.value.(p_lik), JuMP.value.(p_tik))
+    
+        write_slack(output_dir, "/SCACOPF_slacks.txt", psd,
+                        JuMP.value.(pslackm_n), JuMP.value.(pslackp_n),
+                        JuMP.value.(qslackm_n), JuMP.value.(qslackp_n),
+                        JuMP.value.(sslack_li), JuMP.value.(sslack_ti),
+                        JuMP.value.(pslackm_nk), JuMP.value.(pslackp_nk),
+                        JuMP.value.(qslackm_nk), JuMP.value.(qslackp_nk),
+                        JuMP.value.(sslack_lik), JuMP.value.(sslack_tik))
+    end
 
     # return solution
     return solution
 
 end
-
 
 # function to solve contingency
     
@@ -645,7 +666,8 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
                                              nothing,
                           quadratic_relaxation_k::Float64=Inf,
                           minutes_since_base::Float64=1.0,
-                          use_huber_like_penalty::Bool=true)::ContingencySolution
+                          use_huber_like_penalty::Bool=true,
+                          output_dir::Union{Nothing, String} = nothing)::ContingencySolution
     
     # check we are given a valid contingency index
     if k <= 0 || k > nrow(psd.K)
@@ -653,21 +675,18 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
               nrow(psd.K), ").")
     end
     
-    # create generic contingency object
-    # if length(psd.K[k, :ConType]) == 1
-    #     con = GenericContingency(psd, k)
-    # else
     con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
-    # end
     
     # call function for generic contingencies
     sol = solve_contingency(psd, con, basecase_solution, NLSolver,
                             previous_solution=previous_solution,
                             quadratic_relaxation_k=quadratic_relaxation_k,
                             minutes_since_base=minutes_since_base,
-                            use_huber_like_penalty=use_huber_like_penalty)
+                            use_huber_like_penalty=use_huber_like_penalty,
+                            output_dir = output_dir,
+                            k = k)
     
     # override fields for contingencies and return (this is TEMPORARY... only for backwards
     # compatibility)
@@ -687,7 +706,9 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                                              nothing,
                           quadratic_relaxation_k::Float64=Inf,
                           minutes_since_base::Float64=1.0,
-                          use_huber_like_penalty::Bool=true)::ContingencySolution
+                          use_huber_like_penalty::Bool=true,
+                          output_dir::Union{Nothing, String} = nothing,
+                          k = Union{Nothing, Int64} = nothing)::ContingencySolution
     
 
     quadratic_relaxation_k > 0 || error("quadratic relaxation penalty should be positive")
@@ -858,16 +879,32 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         end
     end
 
-    output_dir = "./info_dir"
-    filename = "/Contingency_"*string(JuMP.value(contingency_penalty))*"_power_flow.txt"
-    write_power_flow(output_dir, filename, psd, JuMP.value.(p_li), JuMP.value.(p_ti))
+    # write the information about the system
+    if output_dir !== nothing  
+        if !ispath(output_dir)
+            mkpath(output_dir)
+        end
 
-    # println("Contingency Penalty: " *string(JuMP.value(contingency_penalty))*"")   
-    filename = "/Contingency_"*string(JuMP.value(contingency_penalty))*"_slacks.txt"
-    write_slack_contingency_info(output_dir, filename, psd,
-                     JuMP.value.(pslackm_nk), JuMP.value.(pslackp_nk),
-                     JuMP.value.(qslackm_nk), JuMP.value.(qslackp_nk),
-                     JuMP.value.(sslack_lik), JuMP.value.(sslack_tik))
+        if k == 1
+            write_ramp_rate(output_dir, "/Contingency_ramp_rate.txt", psd::SCACOPFdata, 
+                            psd.G.Pub .* psd.G.RampRate * minutes_since_base )
+        end
+
+        write_power_flow_cons(output_dir, "/Contingency_power_constraints.txt", v_nk, theta_nk, 
+                            p_lik, q_lik, p_tik, q_tik, b_sk,
+                            p_gk, q_gk, pslackm_nk, pslackp_nk, qslackm_nk,
+                            qslackp_nk, sslack_lik, sslack_tik, psd, con, k = k)
+
+        write_cost(output_dir, "/Contingency_objective.txt", psd, JuMP.value(contingency_penalty),
+                            JuMP.value(quadratic_relaxation_term), k)
+   
+        write_power_flow(output_dir, "/Contingency_power_flow.txt", psd, JuMP.value.(p_lik), JuMP.value.(p_tik), k = k)
+        
+        write_slack(output_dir, "/Contingency_slacks.txt", psd,
+                        JuMP.value.(pslackm_nk), JuMP.value.(pslackp_nk),
+                        JuMP.value.(qslackm_nk), JuMP.value.(qslackp_nk),
+                        JuMP.value.(sslack_lik), JuMP.value.(sslack_tik), k = k)
+    end
 
     # return solution
     return ContingencySolution(psd, con,
