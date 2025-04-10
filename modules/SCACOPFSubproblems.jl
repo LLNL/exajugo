@@ -645,7 +645,7 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         end
 
         write_solution(output_dir, psd, solution, basecase_filename = "/SCACOPF_basecase.txt",
-                        contingency_filename = "/SCACOPF_contingency")
+                        contingency_filename = "/SCACOPF_contingency.txt")
 
         write_cost(output_dir, "/SCACOPF_objective.txt", psd, JuMP.value.(production_cost),
                             JuMP.value.(basecase_penalty), cont_pen, quad_pen)
