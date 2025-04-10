@@ -276,7 +276,7 @@ function write_power_flow_cons(output_dir::String, filename::String,
             push!(sshvn2, NaN)
             push!(ssh, NaN)
         else
-            push!(sshvn2, -JuMP.value((-psd.N[n,:Bsh] - sum(b_s[s] for s=psd.SShn[n]))*v_n[n]^2))
+            push!(sshvn2, -JuMP.value((-psd.N[n,:Bsh] - sum(b_s[s] for s=psd.SShn[n]))) * JuMP.value(v_n[n]^2))
             push!(ssh,  JuMP.value(sum(b_s[s] for s=psd.SShn[n])))
         end
 
