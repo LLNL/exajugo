@@ -263,8 +263,18 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost   
 
+    solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
+                                convert(Vector{Float64}, JuMP.value.(b_s)),
+                                JuMP.value.(p_g), JuMP.value.(q_g),
+                                base_cost, recourse_cost)
+
     # write the information about the system
     if output_dir !== nothing
+        if !ispath(output_dir)
+            mkpath(output_dir)
+        end
+
+        write_solution(output_dir, psd, solution, filename = "/Basecase_solution.txt")
 
         write_power_flow_cons(output_dir, "/Basecase_power_constraints.txt",v_n, theta_n, 
                                 p_li, q_li, p_ti, q_ti, b_s, p_g, q_g, pslackm_n, pslackp_n, 
@@ -282,10 +292,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     end
 
     # return solution
-    return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
-                            convert(Vector{Float64}, JuMP.value.(b_s)),
-                            JuMP.value.(p_g), JuMP.value.(q_g),
-                            base_cost, recourse_cost)
+    return solution
     
 end
 
@@ -637,6 +644,9 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
             push!(quad_pen, JuMP.value(quadratic_relaxation_term[k]))            
         end
 
+        write_solution(output_dir, psd, solution, basecase_filename = "/SCACOPF_basecase.txt",
+                        contingency_filename = "/SCACOPF_contingency")
+
         write_cost(output_dir, "/SCACOPF_objective.txt", psd, JuMP.value.(production_cost),
                             JuMP.value.(basecase_penalty), cont_pen, quad_pen)
 
@@ -879,6 +889,14 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         end
     end
 
+    solution = ContingencySolution(psd, con,
+                                    JuMP.value.(v_nk), JuMP.value.(theta_nk),
+                                    convert(Vector{Float64}, JuMP.value.(b_sk)),
+                                    JuMP.value.(p_gk), JuMP.value.(q_gk),
+                                    0.0, objective_value(m), obj_grad)
+
+    # display(solution[1])
+
     # write the information about the system
     if output_dir !== nothing  
         if !ispath(output_dir)
@@ -889,6 +907,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
             write_ramp_rate(output_dir, "/Contingency_ramp_rate.txt", psd::SCACOPFdata, 
                             psd.G.Pub .* psd.G.RampRate * minutes_since_base )
         end
+
+        write_solution(output_dir, psd, solution, filename = "/Contingency_solution.txt", k = k)
 
         write_power_flow_cons(output_dir, "/Contingency_power_constraints.txt", v_nk, theta_nk, 
                             p_lik, q_lik, p_tik, q_tik, b_sk,
@@ -907,11 +927,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     end
 
     # return solution
-    return ContingencySolution(psd, con,
-                            JuMP.value.(v_nk), JuMP.value.(theta_nk),
-                            convert(Vector{Float64}, JuMP.value.(b_sk)),
-                            JuMP.value.(p_gk), JuMP.value.(q_gk),
-                            0.0, objective_value(m), obj_grad)
+    return solution
     
 end
 

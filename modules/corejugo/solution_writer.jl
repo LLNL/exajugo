@@ -41,7 +41,8 @@ end
 
 # method to write base case solution (solution1.txt)
 
-function write_solution(OutDir::String, psd::SCACOPFdata, sol::BasecaseSolution)
+function write_solution(OutDir::String, psd::SCACOPFdata, sol::BasecaseSolution;
+                        filename::Union{Nothing, String} = nothing)
     
     # check that solution corresponds to the given data
     if hash(psd) != sol.psd_hash
@@ -49,9 +50,39 @@ function write_solution(OutDir::String, psd::SCACOPFdata, sol::BasecaseSolution)
     end
     
     # write solution and return
-	f = open(OutDir * "/solution1.txt", "w")
-	write_solution_block(f, psd, sol)
+    if filename == nothing
+    	f = open(OutDir * "/solution1.txt", "w")
+	else
+    	f = open(OutDir * filename, "w")
+    end
+    write_solution_block(f, psd, sol)
 	close(f)
+    return nothing
+    
+end
+
+# method to write single contingency solution 
+
+function write_solution(OutDir::String, psd::SCACOPFdata,
+                       vsol::ContingencySolution;
+                       filename::Union{Nothing, String} = nothing,
+                       k::Union{Nothing, Int64} = nothing)
+      
+    # write all passed contingencies
+    if k == 1
+        f = open(OutDir * filename, "w")
+    else
+        f = open(OutDir * filename, "a")
+    end
+
+    @printf(f, "--contingency\nlabel\n\'%s\'\n",
+            psd.cont_labels[k])
+    write_solution_block(f, psd, vsol)
+    @printf(f, "--delta section\ndelta(MW)\n%g\n",
+            psd.MVAbase*vsol.delta)
+
+    close(f)
+    
     return nothing
     
 end
@@ -59,7 +90,8 @@ end
 # method to write contingency solution (solution2.txt)
 
 function write_solution(OutDir::String, psd::SCACOPFdata,
-                       vsol::Vector{ContingencySolution})
+                       vsol::Vector{ContingencySolution};
+                       filename::Union{Nothing, String} = nothing)
     
     # verify that we have a solution for each contingency
     vsol_cont_ids = collect(vsol[i].cont_id for i = 1:length(vsol))
@@ -99,7 +131,11 @@ function write_solution(OutDir::String, psd::SCACOPFdata,
     end
     
     # write all passed contingencies
-	f = open(OutDir * "/solution2.txt", "w")
+    if filename == nothing
+    	f = open(OutDir * "/solution2.txt", "w")
+	else
+    	f = open(OutDir * filename, "w")
+    end
     hash_psd = hash(psd)
     for i = unique_vsol_idx
         if hash_psd != vsol[i].psd_hash
@@ -119,7 +155,9 @@ end
 
 # method to write SCACOPF solution (solution1.txt and solution2.txt)
 
-function write_solution(OutDir::String, psd::SCACOPFdata, sol::SCACOPFsolution)
-    write_solution(OutDir, psd, sol.basecase)
-    write_solution(OutDir, psd, sol.contingency)
+function write_solution(OutDir::String, psd::SCACOPFdata, sol::SCACOPFsolution;
+                        basecase_filename::Union{Nothing, String} = nothing,
+                        contingency_filename::Union{Nothing, String} = nothing)
+    write_solution(OutDir, psd, sol.basecase, filename = basecase_filename)
+    write_solution(OutDir, psd, sol.contingency, filename = contingency_filename)
 end
