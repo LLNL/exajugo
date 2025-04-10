@@ -451,6 +451,9 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
     @constraint(m, [l=1:nrow(psd.L), i=1:2, k = 1:nrow(psd.K)], sslack_lik[l, i, k] >= 0)
     @constraint(m, [t=1:nrow(psd.T), i=1:2, k = 1:nrow(psd.K)], sslack_tik[t, i, k] >= 0)
 
+    # Number of contingencies
+    krow = nrow(psd.K)
+
     for k = 1:nrow(psd.K)
         # create generic contingency object
         con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
@@ -571,11 +574,11 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
     # declare objective
     if !use_huber_like_penalty
         @objective(m, Min, production_cost + psd.delta * basecase_penalty +
-                            (1-psd.delta)*(1/nrow(psd.K)) * ( sum( cp for cp in contingency_penalty) + 
+                            (1-psd.delta)*(1/krow) * ( sum( cp for cp in contingency_penalty) + 
                             sum( qrt for qrt in quadratic_relaxation_term)))
     else
         @NLobjective(m, Min, production_cost + psd.delta * basecase_penalty +
-                              (1-psd.delta)*(1/nrow(psd.K)) * ( sum( cp for cp in contingency_penalty) + 
+                              (1-psd.delta)*(1/krow) * ( sum( cp for cp in contingency_penalty) + 
                               sum( qrt for qrt in quadratic_relaxation_term)))
     end
 

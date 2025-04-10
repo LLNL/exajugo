@@ -166,10 +166,10 @@ function write_power_flow_cons_block(OutDir::String, filename::String, psd::SCAC
         @printf(f, "--base\n")
     elseif cont_idx == 1
         f = open(OutDir * filename, "w")
-        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[k])
+        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[cont_idx])
     else
         f = open(OutDir * filename, "a")
-        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[k])
+        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[cont_idx])
     end
 
     # write active power section
@@ -346,7 +346,7 @@ function write_cost(OutDir::String, filename::String, psd::SCACOPFdata,
                     bc_gen::Float64, bc_pen::Float64)
 
 	f = open(OutDir * filename, "w")
-    
+
     @printf(f, "--base cost\n")
     @printf(f, "generation cost, penalty\n")
     @printf(f, "%.10f, %.10f\n", bc_gen, bc_pen)
