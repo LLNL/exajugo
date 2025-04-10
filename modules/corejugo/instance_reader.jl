@@ -895,7 +895,7 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
 	
 	# contingencies
 	if isnothing(contingencies)
-        @warn "no information on contingencies"
+        # @warn "no information on contingencies"
         K = DataFrame(Any[Int64[], Symbol[], Int64[], String[]],
 						[:Contingency,:ConType,:IDout, :Label])
     else
