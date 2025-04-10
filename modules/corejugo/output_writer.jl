@@ -60,22 +60,22 @@ end
 # method to write the power flow for solve_basecase or solve_contingency
 
 function write_power_flow(OutDir::String, filename::String, psd::SCACOPFdata, p_li::Matrix{Float64}, 
-                                p_ti::Matrix{Float64}; k::Union{Nothing, Int64} = nothing)
+                                p_ti::Matrix{Float64}; cont_idx::Union{Nothing, Int64} = nothing)
 
-    if k == nothing
+    if cont_idx == nothing
         f = open(OutDir * filename, "w")	
         @printf(f, "--base\n")
-    elseif k == 1
+    elseif cont_idx == 1
         f = open(OutDir * filename, "w")	
-        @printf(f, "--contingency\nlabel\n\'%s\'\n", psd.cont_labels[k])
+        @printf(f, "--contingency\nlabel\n\'%s\'\n", psd.cont_labels[cont_idx])
     else
         f = open(OutDir * filename, "a")	
-        @printf(f, "--contingency\nlabel\n\'%s\'\n", psd.cont_labels[k])
+        @printf(f, "--contingency\nlabel\n\'%s\'\n", psd.cont_labels[cont_idx])
     end
     
 	write_power_flow_block(f, psd, p_li, p_ti)
-
     close(f)
+
     return nothing
 end
 
@@ -83,6 +83,7 @@ end
 
 function write_power_flow(OutDir::String, filename::String, psd::SCACOPFdata, p_li::Matrix{Float64}, 
                                 p_ti::Matrix{Float64}, p_lik::Array{Float64}, p_tik::Array{Float64})
+
     f = open(OutDir * filename, "w")
     @printf(f, "--base\n")
     write_power_flow_block(f, psd, p_li, p_ti)
@@ -92,6 +93,7 @@ function write_power_flow(OutDir::String, filename::String, psd::SCACOPFdata, p_
         write_power_flow_block(f, psd, p_lik[:,:,k], p_tik[:,:,k])
     end
     close(f)
+
     return nothing
 end
 
@@ -101,19 +103,22 @@ function write_slack(OutDir::String, filename::String, psd::SCACOPFdata,
                             pslackm_n::Array{Float64}, pslackp_n::Array{Float64}, 
                             qslackm_n::Array{Float64}, qslackp_n::Array{Float64},
                             sslack_li::Matrix{Float64}, sslack_ti::Matrix{Float64};
-                            k::Union{Nothing, Int64} = nothing)
-    if k == nothing
+                            cont_idx::Union{Nothing, Int64} = nothing)
+
+    if cont_idx == nothing
         f = open(OutDir * filename, "w")
         @printf(f, "--base\n")
-    elseif k == 1
+    elseif cont_idx == 1
         f = open(OutDir * filename, "w")
-        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[k])
+        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[cont_idx])
     else
         f = open(OutDir * filename, "a")
-        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[k])
+        @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[cont_idx])
     end
+
     write_slack_block(f, psd, pslackm_n, pslackp_n, qslackm_n, qslackp_n, sslack_li, sslack_ti)
     close(f)
+
     return nothing
 end
 
@@ -126,7 +131,9 @@ function write_slack(OutDir::String, filename::String, psd::SCACOPFdata,
                             pslackm_nk::Array{Float64}, pslackp_nk::Array{Float64}, 
                             qslackm_nk::Array{Float64}, qslackp_nk::Array{Float64},
                             sslack_lik::Array{Float64}, sslack_tik::Array{Float64})
+
     f = open(OutDir * filename, "w")
+
     @printf(f, "--base\n")
     write_slack_block(f, psd, pslackm_n, pslackp_n, qslackm_n, qslackp_n, sslack_li, sslack_ti)
     for k = 1:nrow(psd.K)
@@ -137,6 +144,7 @@ function write_slack(OutDir::String, filename::String, psd::SCACOPFdata,
                                     sslack_lik[:,:,k], sslack_tik[:,:,k])
     end
     close(f)
+
     return nothing
 end
 
@@ -151,11 +159,12 @@ function write_power_flow_cons_block(OutDir::String, filename::String, psd::SCAC
                                 sum_q_li::Array{Any}, sum_q_ti::Array{Any}, q_relax::Array{Float64},
                                 p_mn::Array{Float64}, p_pn::Array{Float64},
                                 q_mn::Array{Float64}, q_pn::Array{Float64};
-                                k::Union{Nothing, Int64} = nothing)
-    if k == nothing
+                                cont_idx::Union{Nothing, Int64} = nothing)
+
+    if cont_idx == nothing
         f = open(OutDir * filename, "w")
         @printf(f, "--base\n")
-    elseif k == 1
+    elseif cont_idx == 1
         f = open(OutDir * filename, "w")
         @printf(f, "--contingency\n--label\n\'%s\'\n", psd.cont_labels[k])
     else
@@ -181,6 +190,7 @@ function write_power_flow_cons_block(OutDir::String, filename::String, psd::SCAC
                 q_mn[n], q_pn[n], q_relax[n])
 	end
     close(f)
+
     return nothing
 end
 
@@ -197,7 +207,7 @@ function write_power_flow_cons(output_dir::String, filename::String,
                            sslack_li::AbstractArray, sslack_ti::AbstractArray,
                            psd::SCACOPFdata, con::GenericContingency=GenericContingency();
                            aux_slack_i::Union{Nothing, AbstractArray}=nothing,
-                           k::Union{Nothing, Int64}=nothing)
+                           cont_idx::Union{Nothing, Int64}=nothing)
     
     # check whether we are in base case or a contingency
     if isequal_struct(con, GenericContingency())
@@ -284,22 +294,27 @@ function write_power_flow_cons(output_dir::String, filename::String,
         q_mn[n] = JuMP.value(qslackm_n[n])
         q_pn[n] = JuMP.value(qslackp_n[n])
     end
+
     write_power_flow_cons_block(output_dir, filename, psd, sum_pg, pd, gsh, vn, gshvn2, sum_p_li,
                             sum_p_ti, p_relax, sum_qg, qd, Bsh, ssh, sshvn2, sum_q_li, sum_q_ti, q_relax,
-                            p_mn, p_pn, q_mn, q_pn, k = k)
+                            p_mn, p_pn, q_mn, q_pn, cont_idx = cont_idx)
+
     return nothing
 end
 
 # method to write the ramp rate information
 
 function write_ramp_rate(OutDir::String, filename::String, psd::SCACOPFdata, r_rate::Array{Float64})
+
     f = open(OutDir * filename, "w")
+
     @printf(f, "--ramp rate info\n")
     @printf(f, "Generator, Unit, ramp rate bound\n")
     for g = 1:nrow(psd.G)
 		@printf(f, "%d, \'%s\', %.10f\n", psd.G[g,:Bus], psd.G[g,:BusUnitNum], r_rate[g] * psd.MVAbase)
     end
     close(f)
+
     return nothing
 end
 
@@ -307,7 +322,9 @@ end
 
 function write_cost(OutDir::String, filename::String, psd::SCACOPFdata, bc_gen::Float64, 
                     bc_pen::Float64, con_gen::Array{Float64}, quad_gen::Array{Float64})
+
 	f = open(OutDir * filename, "w")
+
     @printf(f, "--base cost\n")
     @printf(f, "generation cost, penalty\n")
     @printf(f, "%.10f, %.10f\n", bc_gen, bc_pen)
@@ -319,35 +336,41 @@ function write_cost(OutDir::String, filename::String, psd::SCACOPFdata, bc_gen::
         @printf(f, "%.10f, %.10f\n", con_gen[k], quad_gen[k])
     end
     close(f)
+
     return nothing
 end
 
 # method to write the components of the cost function for solve_basecase
 
 function write_cost(OutDir::String, filename::String, psd::SCACOPFdata, 
-                    bc_gen::Float64, bc_pen::Float64; k::Union{Nothing, Int64} = nothing)
+                    bc_gen::Float64, bc_pen::Float64)
+
 	f = open(OutDir * filename, "w")
+    
     @printf(f, "--base cost\n")
     @printf(f, "generation cost, penalty\n")
     @printf(f, "%.10f, %.10f\n", bc_gen, bc_pen)
     close(f)
+    
     return nothing
 end
 
 # method to write the components of the cost function for solve_contingency
 
 function write_cost(OutDir::String, filename::String, psd::SCACOPFdata, 
-                    con_gen::Float64, quad_gen::Float64, k::Int64)
-    if k == 1
+                    con_gen::Float64, quad_gen::Float64, cont_idx::Int64)
+
+    if cont_idx == 1
         f = open(OutDir * filename, "w")
     else
         f = open(OutDir * filename, "a")
     end
 
     @printf(f, "--contingency\n")
-    @printf(f, "--label\n\'%s\'\n", psd.cont_labels[k])
+    @printf(f, "--label\n\'%s\'\n", psd.cont_labels[cont_idx])
     @printf(f, "contingency penalty, quadratic relaxation \n")
     @printf(f, "%.10f, %.10f\n", con_gen, quad_gen)
     close(f)
+
     return nothing
 end

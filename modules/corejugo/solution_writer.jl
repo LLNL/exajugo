@@ -57,6 +57,7 @@ function write_solution(OutDir::String, psd::SCACOPFdata, sol::BasecaseSolution;
     end
     write_solution_block(f, psd, sol)
 	close(f)
+
     return nothing
     
 end
@@ -66,17 +67,17 @@ end
 function write_solution(OutDir::String, psd::SCACOPFdata,
                        vsol::ContingencySolution;
                        filename::Union{Nothing, String} = nothing,
-                       k::Union{Nothing, Int64} = nothing)
-      
-    # write all passed contingencies
-    if k == 1
+                       cont_idx::Int64)
+                       
+    if cont_idx == 1
         f = open(OutDir * filename, "w")
     else
         f = open(OutDir * filename, "a")
     end
 
+    # write solution and return
     @printf(f, "--contingency\nlabel\n\'%s\'\n",
-            psd.cont_labels[k])
+            psd.cont_labels[cont_idx])
     write_solution_block(f, psd, vsol)
     @printf(f, "--delta section\ndelta(MW)\n%g\n",
             psd.MVAbase*vsol.delta)
