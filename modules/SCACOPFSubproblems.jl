@@ -151,8 +151,9 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                        recourse_H::T=nothing,   # recourse function hessian
                        previous_solution::Union{Nothing,
                                                 BasecaseSolution}=nothing
-                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
-    
+#                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
+                      )::Tuple{BasecaseSolution, Model} where {T <: Union{Nothing, Function}}    
+
     # get primal starting point
     x0 = get_primal_starting_point(psd, previous_solution)
     
@@ -266,8 +267,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                             convert(Vector{Float64}, JuMP.value.(b_s)),
                             JuMP.value.(p_g), JuMP.value.(q_g),
-                            base_cost, recourse_cost)
-    
+                            base_cost, recourse_cost), m
 end
 
 function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
@@ -568,6 +568,11 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
 
+
+    println("Production Cost: " *string(JuMP.value.(production_cost))*"")
+    println("Basecase Penalty: " *string(JuMP.value.(basecase_penalty))*"")
+    println("Contingency Penalty: " *string(JuMP.value.(contingency_penalty))*"")
+
     # Intial construction of the SCACOPF solution
     solution = SCACOPFsolution(psd, BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                                     convert(Vector{Float64}, JuMP.value.(b_s)),
@@ -587,6 +592,7 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                         0.0, contin_penalty)
         contingency.cont_id = k
         add_contingency_solution!(solution, contingency)
+        println("Contingency "*string(k)*" Penalty: " *string(contin_penalty)*"")   
     end
 
     # return solution
@@ -613,13 +619,13 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
     end
     
     # create generic contingency object
-    if length(psd.K[k, :ConType]) == 1
-        con = GenericContingency(psd, k)
-    else
-        con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
-                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
-                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
-    end
+    # if length(psd.K[k, :ConType]) == 1
+    #     con = GenericContingency(psd, k)
+    # else
+    con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
+                                psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
+                                psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
+    # end
     
     # call function for generic contingencies
     sol = solve_contingency(psd, con, basecase_solution, NLSolver,
