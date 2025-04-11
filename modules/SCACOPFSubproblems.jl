@@ -719,7 +719,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                           minutes_since_base::Float64=1.0,
                           use_huber_like_penalty::Bool=true,
                           output_dir::Union{Nothing, String} = nothing,
-                          cont_idx = Union{Nothing, Int64} = nothing)::ContingencySolution
+                          cont_idx::Union{Nothing, Int64} = nothing)::ContingencySolution
     
 
     quadratic_relaxation_k > 0 || error("quadratic relaxation penalty should be positive")
