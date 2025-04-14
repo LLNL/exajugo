@@ -875,20 +875,27 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
         G[swing_gens_idx, :alpha] .= 1.0
     else    
 		if G[1,:CTYP] != 1   
-			ggovrespix = indexin(string.(G[!,:Bus], ":", G[!,:BusUnitNum]),
-				string.(governorresponse[!,:I], ":", governorresponse[!,:ID]))
-			if any(ggovrespix .== nothing)
-				error("there seems to be missing participation factors for generators: ",
-					findall(x->x!=0, ggovrespix .== nothing))
+			if size(governorresponse, 1) == 0
+				@warn "no information on governor response, assuming only swing-bus generators can respond"
+				swing_gens_idx = findall(x -> x == :SWING, N[!,:Type][indexin(G[!,:Bus], N[!,:Bus])])
+				G[!,:alpha] = zeros(Float64, size(G, 1))
+				G[swing_gens_idx, :alpha] .= 1.0
+			else
+				ggovrespix = indexin(string.(G[!,:Bus], ":", G[!,:BusUnitNum]),
+					string.(governorresponse[!,:I], ":", governorresponse[!,:ID]))
+				if any(ggovrespix .== nothing)
+					error("there seems to be missing participation factors for generators: ",
+						findall(x->x!=0, ggovrespix .== nothing))
+				end
+				ggovrespix = convert(Array{Int64}, ggovrespix)
+				G[!,:alpha] = governorresponse[ggovrespix,:R]
 			end
-			ggovrespix = convert(Array{Int64}, ggovrespix)
-			G[!,:alpha] = governorresponse[ggovrespix,:R]
 		end
     end
 	
 	# contingencies
 	if isnothing(contingencies)
-        @warn "no information on contingencies"
+        # @warn "no information on contingencies"
         K = DataFrame(Any[Int64[], Symbol[], Int64[], String[]],
 						[:Contingency,:ConType,:IDout, :Label])
     else
@@ -938,7 +945,6 @@ function GOfmt2params(MVAbase::Float64, buses::DataFrame, loads::DataFrame,     
 				K[k,:ConType] = con_types
 				K[k,:Label] = contingencies[k, :LABEL]
 			end
-			# need to look here later
             if length(missingcon_k) > 0
                 msg = "found inconsistent contingency registers: "
                 missingcontbl = view(contingencies, missingcon_k, :)
