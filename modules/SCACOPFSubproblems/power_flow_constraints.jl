@@ -174,5 +174,4 @@ function addpowerflowcons!(m::JuMP.Model,
                       sum(q_ti[Tidxn[tix], Tin[tix]] for tix=1:length(Tidxn)) ==
                       qslackp_n[n] - qslackm_n[n] + q_relax_slack)
     end
-    
 end

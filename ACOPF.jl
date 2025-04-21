@@ -38,7 +38,7 @@ function solve_and_save_OPF(psd::SCACOPFdata, solution_dir::String)
 		mkpath(solution_dir)
 	end
 	write_solution(solution_dir, psd, solution)
-	print("done.")
+	println("done.")
 	return nothing
 end
 
@@ -47,4 +47,6 @@ if length(ARGS) == 2
 	ACOPF(ARGS[1], ARGS[2]);
 elseif length(ARGS) == 3
 	ACOPF(ARGS[1], ARGS[2], ARGS[3]);
+else
+	error("Received ", length(ARGS), " input arguments, but expected 2 or 3.")
 end
