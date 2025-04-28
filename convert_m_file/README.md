@@ -1,5 +1,3 @@
-# README
-
 ## Overview
 This project converts MATPOWER case files into the `.raw`, `.rop`, `.con`, and `.inl` formats required for running **ExaJuGo**.  
 The provided script automatically generates these files starting from a MATPOWER `.m` case file.
@@ -15,7 +13,7 @@ Once you have the wildfire data, you can generate `.con` files using the noteboo
 - **MATLAB** 
 - **MATPOWER** installed (https://matpower.org/)
 
-⚡ **Important:** You must override the default `save2psse.m` function in MATPOWER by using the customized version provided in this directory.  
+**Important:** You must override the default `save2psse.m` function in MATPOWER by using the customized version provided in this directory.  
 This ensures compatibility with the output format expected by ExaJuGo.
 
 ## Files and Directories
