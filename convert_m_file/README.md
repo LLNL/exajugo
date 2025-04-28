@@ -73,7 +73,7 @@ If you want to include wildfire-dependent data, follow these additional steps:
 1. Visit the following link for instructions on wildfire data types and sources: [Wildfire Data in SC-ACOPF](https://github.com/SLOPE-grid/sc-acopf-viz/tree/main).
 2. With the wildfire data, use the code in `preprocessing_4_ExaJuGo/Make_con_file.ipynb` to generate the `.con` file.
    
-This will create a `.con` file that accounts for wildfire impacts on the grid.
+This will create a `.con` file that accounts for wildfire impacts on the California grid.
 
 6. **Save the generated files** to the directory you moved into ExaJuGo (`./../examples/California/`).
 
