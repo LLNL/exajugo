@@ -55,7 +55,7 @@ You can download a `.m` case file and place it inside the `example_m_files/` dir
 3. Run the main script in MATLAB:
 
 ```matlab
-main_script
+create_ExaJuGo_files
 ```
 
 4. Move the generated `California/` folder into the ExaJuGo `examples/` directory:
