@@ -34,7 +34,7 @@ function solve_and_save_OPF(psd::SCACOPFdata, solution_dir::String;
 	opt = optimizer_with_attributes(Ipopt.Optimizer,
 		                            #"linear_solver" => "ma57",
 		                            "sb" => "yes")
-	solution = solve_basecase(psd, opt, system_dir = system_dir)
+	solution = solve_basecase(psd, opt, output_dir = system_dir)
 	println("Done solving OPF. Objective value: \$", round(solution.base_cost, digits=1),
 		".\nWriting solution to "*solution_dir*" ... ")
 	if !ispath(solution_dir)

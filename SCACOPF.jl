@@ -38,10 +38,10 @@ function solve_and_save_OPF(psd::SCACOPFdata, solution_dir::String;
 	end
 	println("Solving SCACOPF using sparse OPF ...")
 	opt = optimizer_with_attributes(Ipopt.Optimizer,
-		                            "linear_solver" => "ma27",
+		                            # "linear_solver" => "ma57",
 		                            "sb" => "yes"
 									)
-	solution = solve_SC_ACOPF(psd, opt, system_dir = system_dir)
+	solution = solve_SC_ACOPF(psd, opt, output_dir = system_dir)
 	println("Done solving SCACOPF. \nWriting solution to "*solution_dir*" ... ")
 	if !ispath(solution_dir)
 		mkpath(solution_dir)
