@@ -8,7 +8,7 @@ export SCACOPFdata, enforce_bounds!, GenericContingency, isequal_struct,
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
        add_contingency_solution!,
        get_full_initial_solution, get_full_solution,
-       write_solution,
+       write_solution, write_aux_solution,
        read_base_solution,
        number_of_connected_subsystems, split_on_connected_subsystems
 

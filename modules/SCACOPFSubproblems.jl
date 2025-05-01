@@ -7,7 +7,7 @@ module SCACOPFSubproblems
 export solve_base_power_flow, solve_basecase, solve_contingency, solve_random_contingency,
        SCACOPFdata, GenericContingency, 
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
-       write_solution
+       write_solution, write_aux_solution
 
 ## load external modules
 

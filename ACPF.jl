@@ -37,7 +37,8 @@ function ACPF(raw_filename::String, solution_dir::String)
 	if !ispath(solution_dir)
 		mkpath(solution_dir)
 	end
-	write_solution(solution_dir, psd, solution)
+	write_solution(solution_dir, psd, solution)         # write solution in ARPA-E GO 1 text format
+	write_aux_solution(solution_dir, psd, solution)     # write solution in PowerWorld Auxiliary format
 	println("done.")
 	return 
 end
