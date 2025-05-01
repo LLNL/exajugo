@@ -5,6 +5,7 @@ module SCACOPFSubproblems
 ## elements to be exported
 
 export solve_base_power_flow, solve_basecase, solve_contingency, solve_random_contingency,
+       create_basecase_model, solve_basecase_from_model,
        solve_SC_ACOPF, 
        SCACOPFdata, GenericContingency, 
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
@@ -126,7 +127,7 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
     # aggregate deviations to report them
     summary = Dict{Symbol, Float64}()
-    summary[:p_deviations] = sum(JuMP.value(p_devm_g[g]) + JuMP.value(p_devp_g[g]) for g=1:nrow(psd.G) if
+    summary[:p_deviations] = sum(JuMP.value.(p_devm_g[g]) + JuMP.value.(p_devp_g[g]) for g=1:nrow(psd.G) if
                                  psd.N[psd.G_Nidx[g],:Type] != :SWING)
     
     # aggregate infeasibilities to report them
@@ -143,55 +144,47 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
 end
 
-# function to solve base case, possibly with recourse approximations
+function create_basecase_model(psd::SCACOPFdata, NLSolver, x0::Dict;
+                               recourse_f::T=nothing,   # recourse function value
+                               recourse_g::T=nothing,   # recourse function gradient
+                               recourse_H::T=nothing,   # recourse function hessian
+            )::Tuple{Model, Dict} where {T <: Union{Nothing, Function}}
 
-function solve_basecase(psd::SCACOPFdata, NLSolver;
-                       recourse_f::T=nothing,   # recourse function value
-                       recourse_g::T=nothing,   # recourse function gradient
-                       recourse_H::T=nothing,   # recourse function hessian
-                       previous_solution::Union{Nothing,
-                                                BasecaseSolution}=nothing,
-                       output_dir::Union{Nothing, String} = nothing
-                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
-    
-    # get primal starting point
-    x0 = get_primal_starting_point(psd, previous_solution)
-    
     # create model
     m = Model(NLSolver)
 
     # base case variables
     @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
-              start=x0[:v_n][n])
+    start=x0[:v_n][n])
     @variable(m, theta_n[n=1:nrow(psd.N)], start=x0[:theta_n][n])
     @variable(m, p_li[l=1:nrow(psd.L), i=1:2], start=x0[:p_li][l,i])
     @variable(m, q_li[l=1:nrow(psd.L), i=1:2], start=x0[:q_li][l,i])
     @variable(m, p_ti[t=1:nrow(psd.T), i=1:2], start=x0[:p_ti][t,i])
     @variable(m, q_ti[t=1:nrow(psd.T), i=1:2], start=x0[:q_ti][t,i])
     @variable(m, psd.SSh[s,:Blb] <= b_s[s=1:nrow(psd.SSh)] <=
-              psd.SSh[s,:Bub], start=x0[:b_s][s])
+    psd.SSh[s,:Bub], start=x0[:b_s][s])
     @variable(m, psd.G[g,:Plb] <= p_g[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
-              start=x0[:p_g][g])
+    start=x0[:p_g][g])
     @variable(m, psd.G[g,:Qlb] <= q_g[g=1:nrow(psd.G)] <= psd.G[g,:Qub],
-              start=x0[:q_g][g])
+    start=x0[:q_g][g])
     @variable(m, c_g[g=1:nrow(psd.G)], start=x0[:c_g][g])
     @variable(m, pslackm_n[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_n][n])
     @variable(m, pslackp_n[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackp_n][n])
     @variable(m, qslackm_n[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackm_n][n])
     @variable(m, qslackp_n[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackp_n][n])
     @variable(m, sslack_li[l=1:nrow(psd.L), i=1:2] >= 0,
-              start=x0[:sslack_li][l,i])
+    start=x0[:sslack_li][l,i])
     @variable(m, sslack_ti[t=1:nrow(psd.T), i=1:2] >= 0,
-              start=x0[:sslack_ti][t,i])
-    
+    start=x0[:sslack_ti][t,i])
+
     # fix angle at reference bus to zero
     JuMP.fix(theta_n[psd.RefBus], 0.0, force=true)
-    
+
     # add power flow constraints
     addpowerflowcons!(m, v_n, theta_n, p_li, q_li, p_ti, q_ti, b_s, p_g, q_g,
-                      pslackm_n, pslackp_n, qslackm_n, qslackp_n,
-                      sslack_li, sslack_ti, psd)
-    
+    pslackm_n, pslackp_n, qslackm_n, qslackp_n,
+    sslack_li, sslack_ti, psd)
+
     if psd.G.CTYP[1] == 1
         c_g = Vector{JuMP.QuadExpr}(undef, size(psd.G, 1))
         # production cost (continous quadratic formulation)
@@ -209,7 +202,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
         end
     end
     production_cost = @expression(m, sum(c_g[g] for g=1:nrow(psd.G)))
-    
+
     # base case penalty
     basecase_penalty = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
     for n = 1:nrow(psd.N)
@@ -236,7 +229,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                            psd.a[:S], sslack_ti[t,i], sslack_ti[t,i])
         add_to_expression!(basecase_penalty, psd.b[:S], sslack_ti[t,i])
     end
-    
+
     # contingency penalty
     if isnothing(recourse_f)
         contingency_penalty = 0.0
@@ -245,29 +238,42 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                       recourse_f, recourse_g, recourse_H)
         contingency_penalty = @NLexpression(m, recourse_f(p_g...))
     end
-    
+
     # declare objective
     @objective(m, Min, production_cost + psd.delta*basecase_penalty +
                (1-psd.delta)*contingency_penalty)
-    
+
+    model_data = Dict(
+        :production_cost => production_cost,
+        :basecase_penalty => basecase_penalty,
+        :contingency_penalty => contingency_penalty
+    )
+
+    # return JuMP model and internal data
+    return m, model_data
+end
+
+function solve_basecase_from_model(m::JuMP.Model, psd::SCACOPFdata, model_data::Dict;
+                                   output_dir::Union{Nothing, String} = nothing)
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
-       JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
-       JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
+        JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
+        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
         error("solver failed to find a feasible solution.")
     end
-    
+
     # objective breakdown
-    base_cost = JuMP.value(production_cost) +
-                psd.delta*JuMP.value(basecase_penalty)
-    recourse_cost = JuMP.objective_value(m) - base_cost   
-
-    solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
-                                convert(Vector{Float64}, JuMP.value.(b_s)),
-                                JuMP.value.(p_g), JuMP.value.(q_g),
+    base_cost = JuMP.value.(model_data[:production_cost]) +
+                psd.delta * JuMP.value.(model_data[:basecase_penalty])
+    recourse_cost = JuMP.objective_value(m) - base_cost
+    
+    b_s = convert(Vector{Float64}, JuMP.value.(m[:b_s]))
+   
+    solution = BasecaseSolution(psd, JuMP.value.(m[:v_n]), JuMP.value.(m[:theta_n]),
+                                b_s,
+                                JuMP.value.(m[:p_g]), JuMP.value.(m[:q_g]),
                                 base_cost, recourse_cost)
-
     # write the information about the system
     if output_dir !== nothing
         if !ispath(output_dir)
@@ -276,24 +282,50 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
 
         write_solution(output_dir, psd, solution, filename = "/Basecase_solution.txt")
 
-        write_power_flow_cons(output_dir, "/Basecase_power_constraints.txt",v_n, theta_n, 
-                                p_li, q_li, p_ti, q_ti, b_s, p_g, q_g, pslackm_n, pslackp_n, 
-                                qslackm_n, qslackp_n, sslack_li, sslack_ti, psd)
-        
-        write_cost(output_dir, "/Basecase_objective.txt", psd, JuMP.value.(production_cost),
-                            JuMP.value.(basecase_penalty))
+        write_power_flow_cons(output_dir, "/Basecase_power_constraints.txt",
+                              JuMP.value.(m[:v_n]), JuMP.value.(m[:theta_n]), 
+                              JuMP.value.(m[:p_li]), JuMP.value.(m[:q_li]),
+                              JuMP.value.(m[:p_ti]), JuMP.value.(m[:q_ti]),
+                              b_s,
+                              JuMP.value.(m[:p_g]), JuMP.value.(m[:q_g]),
+                              JuMP.value.(m[:pslackm_n]), JuMP.value.(m[:pslackp_n]), 
+                              JuMP.value.(m[:qslackm_n]), JuMP.value.(m[:qslackp_n]), 
+                              JuMP.value.(m[:sslack_li]), JuMP.value.(m[:sslack_ti]), psd)
+       
+        write_cost(output_dir, "/Basecase_objective.txt", psd, JuMP.value.(model_data[:production_cost]),
+                   JuMP.value.(model_data[:basecase_penalty]))
 
-        write_power_flow(output_dir, "/Basecase_power_flow.txt", psd, JuMP.value.(p_li), JuMP.value.(p_ti))
-        
+        write_power_flow(output_dir, "/Basecase_power_flow.txt", psd, JuMP.value.(m[:p_li]), JuMP.value.(m[:p_ti]))
+       
         write_slack(output_dir, "/Basecase_slacks.txt", psd,
-                        JuMP.value.(pslackm_n), JuMP.value.(pslackp_n),
-                        JuMP.value.(qslackm_n), JuMP.value.(qslackp_n),
-                        JuMP.value.(sslack_li), JuMP.value.(sslack_ti))
+                    JuMP.value.(m[:pslackm_n]), JuMP.value.(m[:pslackp_n]),
+                    JuMP.value.(m[:qslackm_n]), JuMP.value.(m[:qslackp_n]),
+                    JuMP.value.(m[:sslack_li]), JuMP.value.(m[:sslack_ti]))
     end
-
+   
     # return solution
-    return solution
+    return solution, m, model_data
+
+end
+
+function solve_basecase(psd::SCACOPFdata, NLSolver;
+                       recourse_f::T=nothing,   # recourse function value
+                       recourse_g::T=nothing,   # recourse function gradient
+                       recourse_H::T=nothing,   # recourse function hessian
+                       previous_solution::Union{Nothing,
+                                                BasecaseSolution}=nothing,
+                       output_dir::Union{Nothing, String} = nothing
+                       )::Tuple{BasecaseSolution, Model} where {T <: Union{Nothing, Function}}
     
+    # get primal starting point
+    x0 = get_primal_starting_point(psd, previous_solution)
+    
+    # create model
+    m, model_data = create_basecase_model(psd, NLSolver, x0, 
+                            recourse_f=recourse_f, recourse_g=recourse_g, recourse_H=recourse_H)
+
+    solution, m = solve_basecase_from_model(m, psd, model_data, output_dir=output_dir)
+    return solution, m
 end
 
 function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
@@ -591,8 +623,8 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
     end
 
     # objective breakdown
-    base_cost = JuMP.value(production_cost) +
-                psd.delta*JuMP.value(basecase_penalty)
+    base_cost = JuMP.value.(production_cost) +
+                psd.delta*JuMP.value.(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
 
     # Intial construction of the SCACOPF solution
@@ -606,7 +638,7 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
                                  psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
                                  psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
-        contin_penalty = JuMP.value(contingency_penalty[k])
+        contin_penalty = JuMP.value.(contingency_penalty[k])
         contingency = ContingencySolution(psd, con,
                                         JuMP.value.(v_nk[:,k]), JuMP.value.(theta_nk[:,k]),
                                         convert(Vector{Float64}, JuMP.value.(b_sk[:,k])),
@@ -641,8 +673,8 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                   qslackp_nk[:,k], sslack_lik[:,:,k], sslack_tik[:,:,k], psd, con, 
                                   cont_idx = k)
                                 
-            push!(cont_pen, JuMP.value(contingency_penalty[k]))
-            push!(quad_pen, JuMP.value(quadratic_relaxation_term[k]))            
+            push!(cont_pen, JuMP.value.(contingency_penalty[k]))
+            push!(quad_pen, JuMP.value.(quadratic_relaxation_term[k]))            
         end
 
         write_solution(output_dir, psd, solution, basecase_filename = "/SCACOPF_basecase.txt",
@@ -915,8 +947,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                             p_gk, q_gk, pslackm_nk, pslackp_nk, qslackm_nk,
                             qslackp_nk, sslack_lik, sslack_tik, psd, con, cont_idx = cont_idx)
 
-        write_cost(output_dir, "/Contingency_objective.txt", psd, JuMP.value(contingency_penalty),
-                            JuMP.value(quadratic_relaxation_term), cont_idx)
+        write_cost(output_dir, "/Contingency_objective.txt", psd, JuMP.value.(contingency_penalty),
+                            JuMP.value.(quadratic_relaxation_term), cont_idx)
    
         write_power_flow(output_dir, "/Contingency_power_flow.txt", psd, JuMP.value.(p_lik), 
                          JuMP.value.(p_tik), cont_idx = cont_idx)
