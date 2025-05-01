@@ -56,10 +56,16 @@ struct SCACOPFdata
         else
             RefBus = 1
         end
-        G_epicost_slope = Vector{Vector{Float64}}(undef, nrow(G))
-        G_epicost_intercept = Vector{Vector{Float64}}(undef, nrow(G))
-        for i = 1:nrow(G)
-            G_epicost_slope[i], G_epicost_intercept[i] = epicost_params(G, i)
+        if G[1,:CTYP] == 1
+            # Not required with polynomial cost function
+            G_epicost_slope = Vector{Vector{Float64}}[]
+            G_epicost_intercept = Vector{Vector{Float64}}[]
+        else
+            G_epicost_slope = Vector{Vector{Float64}}(undef, nrow(G))
+            G_epicost_intercept = Vector{Vector{Float64}}(undef, nrow(G))
+            for i = 1:nrow(G)
+                G_epicost_slope[i], G_epicost_intercept[i] = epicost_params(G, i)
+            end
         end
         a = Dict{Symbol, Float64}()
         b = Dict{Symbol, Float64}()
@@ -80,6 +86,7 @@ struct SCACOPFdata
                          maxnup::Int=3,
                          raw_filename::Union{AbstractString, Nothing}=nothing,
                          rop_filename::Union{AbstractString, Nothing}=nothing,
+                         con_filename::Union{AbstractString, Nothing}=nothing,
                          enforce_bounds_on_x0::Bool=true)
         isnothing(dir) || isnothing(raw_filename) ||
             throw(ArgumentError("either dir or raw_filename [and rop_filename] must be specified"))
@@ -108,14 +115,29 @@ struct SCACOPFdata
                 activedsptables = nothing
                 costcurves = nothing
             end
-            N, L, T, SSh, G, K, P =
-                GOfmt2params(MVAbase, buses, loads, fixedbusshunts, generators,
-                             ntbranches, tbranches, switchedshunts,
-                             generatordsp, activedsptables, costcurves,
-                             enforce_bounds_on_x0=enforce_bounds_on_x0)
-            return SCACOPFdata(MVAbase, N, L, T, SSh, G, K, P,
-                               generators, DataFrame([String[], Symbol[], Contingency[]],
-                                                     [:LABEL, :CTYPE, :CON]))
+            if !isnothing(con_filename)
+                contingencies = readCON(con_filename)
+                N, L, T, SSh, G, K, P =
+                    GOfmt2params(MVAbase, buses, loads, fixedbusshunts, generators,
+                                ntbranches, tbranches, switchedshunts, generatordsp, 
+                                activedsptables, costcurves, 
+                                DataFrame([Int64[], String[], Float64[], Float64[], 
+                                            Float64[], Float64[], Float64[]],
+                                [:I,:ID,:H,:PMAX,:PMIN,:R,:D]), 
+                                contingencies,
+                                enforce_bounds_on_x0=enforce_bounds_on_x0)
+                return SCACOPFdata(MVAbase, N, L, T, SSh, G, K, P,
+                                generators, contingencies)
+            else
+                N, L, T, SSh, G, K, P =
+                    GOfmt2params(MVAbase, buses, loads, fixedbusshunts, generators,
+                                ntbranches, tbranches, switchedshunts,
+                                generatordsp, activedsptables, costcurves,
+                                enforce_bounds_on_x0=enforce_bounds_on_x0)
+                return SCACOPFdata(MVAbase, N, L, T, SSh, G, K, P,
+                                generators, DataFrame([String[], Symbol[], Contingency[]],
+                                                        [:LABEL, :CTYPE, :CON]))
+            end
         end
     end
     
@@ -232,10 +254,10 @@ mutable struct ContingencySolution <: SubproblemSolution
     psd_hash::UInt64
     
     # information to identify contingency
-    cont_Kidx::Int          # index in K
-    cont_id::Int            # index in contingencies
-    cont_idout::Int         # id of the element out
-    cont_type::Symbol       # contingency type: :Line, :Transformer, :Generator
+    cont_Kidx::Union{Int, Vector{Int}}               # index in K
+    cont_id::Union{Int, Vector{Int}}            # index in contingencies
+    cont_idout::Union{Int, Vector{Int}}              # id of the element out
+    cont_type::Union{Symbol, Vector{Symbol}}          # contingency type: :Line, :Transformer, :Generator
     
     # alternative generic contingency (for running contingencies not in K)
     cont_alt::Union{GenericContingency, Nothing}
@@ -359,7 +381,7 @@ function indexsets(N::DataFrame, L::DataFrame, T::DataFrame, SSh::DataFrame,
         push!(Gn[G_Nidx[g]], g)
     end
     if typeof(K) == DataFrame
-        K_outidx = Vector{Int}(undef, size(K, 1))
+        K_outidx = Vector{Vector{Int}}(undef, size(K, 1))
         Kgen = findall(K[!,:ConType] .== :Generator)
         Klin = findall(K[!,:ConType] .== :Line)
         Ktra = findall(K[!,:ConType] .== :Transformer)

@@ -1,0 +1,36 @@
+ 0          /  PSS/E-30.0, 11-Feb-2025 15:13:41
+ 0 / End of Bus Voltage Constraint data, begin Adjustable Bus Shunt data
+ 0 / End of Adjustable Bus Shunt data, begin Bus Load data
+ 0 / End of Bus Load data, begin Adjustable Bus Load Tables
+ 0 / End of Adjustable Bus Load Tables, begin Generator Dispatch data
+1, 1, 1.0, 1
+2, 1, 1.0, 2
+2, 2, 1.0, 3
+3, 1, 1.0, 4
+3, 2, 1.0, 5
+3, 3, 1.0, 6
+ 0 / End of Generator Dispatch data, begin Active Power Dispatch Tables
+1, 250.000000, 10.000000, 1.0, 1, 1, 1
+2, 300.000000, 10.000000, 1.0, 1, 1, 2
+3, 300.000000, 10.000000, 1.0, 1, 1, 3
+4, 270.000000, 10.000000, 1.0, 1, 1, 4
+5, 270.000000, 10.000000, 1.0, 1, 1, 5
+6, 270.000000, 10.000000, 1.0, 1, 1, 6
+ 0 / End of Active Power Dispatch Tables, begin Generation Reserve data
+ 0 / End of Generation Reserve data, begin Generation Reactive Capability data
+ 0 / End of Generation Reactive Capability data, begin Adjustable Branch Reactance data
+ 0 / End of Adjustable Branch Reactance data, begin Piece - wise Linear Cost Tables
+ 0 / End of Piece-wise Linear Cost Tables, begin Piece-wise Quadratic Cost Tables
+ 0 / End of Piece-wise Quadratic Cost Tables, begin Polynomial Cost Tables
+1, 'QUADRATIC 1   ', 150.000000, 5.000000, 0.110000, 0.0, 0.0
+2, 'QUADRATIC 2   ', 600.000000, 10.00000, 0.285000, 0.0, 0.0
+3, 'QUADRATIC 3   ', 100.000000, 0.5000000, 0.0500000, 0.0, 0.0
+4, 'QUADRATIC 4   ', 335.000000, 1.000000, 0.122500, 0.0, 0.0
+5, 'QUADRATIC 5   ', 335.000000, 1.000000, 0.122500, 0.0, 0.0
+6, 'QUADRATIC 6   ', 335.000000, 1.000000, 0.122500, 0.0, 0.0
+ 0 / End of Polynomial Cost Tables, begin Period Reserve data
+ 0 / End of Period Reserve data, begin Branch Flow Constraint data
+ 0 / End of Branch Flow Constraint data, begin Interface Flow data
+ 0 / End of Interface Flow data, begin Linear Constraint Equation Dependency data
+ 0 / End of Linear Constraint Equation Dependency data, begin 2-terminal dc Line Constraint data
+ 0 / End of 2-terminal dc Line Constraint data
