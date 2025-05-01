@@ -215,7 +215,7 @@ function readRAW(filename::AbstractString)
 				14=>Float64, 15=>Float64, 16=>Float64, 17=>Float64, 18=>Float64,
 				19=>Float64, 20=>Float64, 21=>Float64, 22=>Float64, 23=>Float64,
 				24=>Float64, 25=>Float64, 26=>Float64), ntasks=1, comment=RAWCOMMENT,
-                maxwarnings=0)
+                silencewarnings=true)
         println("done. Read ", size(switchedshunts, 1), " switched shunts.")
 	else
 		switchedshunts = DataFrame()

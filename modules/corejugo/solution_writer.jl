@@ -162,3 +162,65 @@ function write_solution(OutDir::String, psd::SCACOPFdata, sol::SCACOPFsolution;
     write_solution(OutDir, psd, sol.basecase, filename = basecase_filename)
     write_solution(OutDir, psd, sol.contingency, filename = contingency_filename)
 end
+
+# function to write solution block in AUX format
+
+function write_aux_solution_block(io::IO, psd::SCACOPFdata, sol::SubproblemSolution)
+	
+	# compute reactive compensaton at each bus
+	bcsn = zeros(Float64, nrow(psd.N))
+	for ssh = 1:nrow(psd.SSh)
+		bcsn[psd.SSh_Nidx[ssh]] += sol.b_s[ssh]
+	end
+	bcsn *= psd.MVAbase
+	
+	# write bus section
+	@printf(io, "Bus (Number,Vpu,Vangle)\n{\n")
+	for n = 1:nrow(psd.N)
+		@printf(io, "%d %f %f\n", psd.N[n,:Bus],
+            sol.v_n[n], 180/pi*sol.theta_n[n])
+	end
+	@printf(io, "}\n")
+	
+    # write generator section
+	gmap = zeros(Int, nrow(psd.generators))
+	for g = 1:nrow(psd.G)
+		gmap[psd.G[g,:Generator]] = g
+	end
+    g_Nidx = indexin(psd.generators[!,:I], psd.N[!,:Bus])
+	@printf(io, "Gen (BusNum,ID,Status,VoltSet,MWSetPoint,MvarSetPoint)\n{\n")
+	for gi = 1:nrow(psd.generators)
+		if gmap[gi] == 0
+			@printf(io, "%d \"%s\" \"Open\" %f 0.0 0.0\n", psd.generators[gi,:I],
+                    psd.generators[gi,:ID], sol.v_n[g_Nidx[gi]])
+		else
+			g = gmap[gi]
+			@printf(io, "%d \"%s\" \"Closed\" %f %f %f\n", psd.G[g,:Bus],
+                    psd.G[g,:BusUnitNum], sol.v_n[g_Nidx[gi]],
+                    psd.MVAbase*sol.p_g[g], psd.MVAbase*sol.q_g[g])
+		end
+	end
+	@printf(io, "}\n")
+    
+    return nothing
+    
+end
+
+# method to write base case solution to AUX file
+
+function write_aux_solution(OutDir::String, psd::SCACOPFdata, sol::BasecaseSolution)
+    
+    # check that solution corresponds to the given data
+    if hash(psd) != sol.psd_hash
+        error("base case solution does not correspond to power system data.")
+    end
+    
+    # write solution and return
+	f = open(OutDir * "/solution1.aux", "w")
+	write_aux_solution_block(f, psd, sol)
+	close(f)
+    return nothing
+    
+end
+
+
