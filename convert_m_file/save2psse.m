@@ -1,3 +1,6 @@
+% The original MATPOWER implementation does not assign correct IDs for
+% multiple generators at the same bus. Therefore, we modified this function
+% to properly handle multiple generators at a single bus.
 function fname_out = save2psse(fname, mpc, rawver)
 %SAVE2PSSE  Saves a MATPOWER case to PSS/E RAW format.
 %   SAVE2PSSE(FNAME, MPC)

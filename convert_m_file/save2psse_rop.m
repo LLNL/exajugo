@@ -1,3 +1,5 @@
+% This is a new function (not part of MATPOWER) developed to generate a 
+% PSS/E ROP (Raw Operating Point) file from a given test case.
 function fname_out = save2psse_rop(fname, mpc, rawver)
 %SAVE2PSSE_ROP   Save MATPOWER case to a PSS/E ROP (Raw Operating Point) file.
 %
