@@ -3,8 +3,11 @@
 %==========================================================================
 
 % Define the output directory for the generated files
-output_dir = './California';            % <- directory to save output files
-% output_dir = './9bus';                 % <- alternate example: 9-bus system
+example_dir = './examples';            % directory to save output files
+casefile_dir = 'California';           % case directory
+% casefile_dir = '9bus';                 % <- alternate example: 9-bus system
+
+output_dir = fullfile(example_dir, casefile_dir);
 
 % Create the output directory if it does not exist
 if ~exist(output_dir, 'dir')
