@@ -1,6 +1,36 @@
-% The original MATPOWER implementation does not assign correct IDs for
-% multiple generators at the same bus. Therefore, we modified this function
-% to properly handle multiple generators at a single bus.
+%   This file is redistribution of a file with the same name from MATPOWER, see 
+%   MATPOWER copyright notice, list of conditions, and disclaimer below. 
+%
+%   Copyright (c) 1996-2024, Power Systems Engineering Research Center (PSERC)
+%   and individual contributors (see AUTHORS file for details).
+%   All rights reserved.
+%
+%   Redistribution and use in source and binary forms, with or without
+%   modification, are permitted provided that the following conditions are
+%   met:
+%
+%   1. Redistributions of source code must retain the above copyright
+%   notice, this list of conditions and the following disclaimer.
+%
+%   2. Redistributions in binary form must reproduce the above copyright
+%   notice, this list of conditions and the following disclaimer in the
+%   documentation and/or other materials provided with the distribution.
+%
+%   3. Neither the name of the copyright holder nor the names of its
+%   contributors may be used to endorse or promote products derived from
+%   this software without specific prior written permission.
+%
+%   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+%   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+%   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+%   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+%   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+%   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+%   TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+%   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+%   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+%   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+%   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 function fname_out = save2psse(fname, mpc, rawver)
 %SAVE2PSSE  Saves a MATPOWER case to PSS/E RAW format.
 %   SAVE2PSSE(FNAME, MPC)
@@ -127,21 +157,19 @@ if isfield(mpc, 'genfuel')
 end
 if ng
     %%             I,  ID,    PG,    QG,    QT,    QB,    VS,IREG,MBASE,ZR,ZX, RT, XT,GTAP,STAT,RMPCT,PT,PB,O1,F1,...,O4,F4,WMOD,WPF
-GenIDs = zeros(length(mpc.bus),1);
-for i = 1:ng
-    GenIDs(mpc.gen(i, GEN_BUS)) = GenIDs(mpc.gen(i, GEN_BUS)) + 1;
-    GenID = GenIDs(mpc.gen(i, GEN_BUS));
-    fprintf(fd, '%6d, %2d, %9.7g, %9.7g, %9.7g, %9.7g, %8.7g, %d, %7g, %g, %g, %g, %g, %g, %d, %g, %9.7g, %9.7g, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n', ...
-        [ mpc.gen(ig(i), GEN_BUS) GenID mpc.gen(ig(i), [PG QG QMAX QMIN VG]) ...
-          0.0 mpc.gen(ig(i), MBASE) 0.0 1.0 ...
-          0.0 0.0 1.0 (mpc.gen(ig(i), GEN_STATUS) > 0) ...
-          100.0 mpc.gen(ig(i), [PMAX PMIN]) 1.0 1.0 ...
-          0.0 1.0 0.0 1.0 ...
-          0.0 1.0 wind(i) 1.0 ...
-        ]');
-end
-
-
+    GenIDs = zeros(length(mpc.bus),1);
+    for i = 1:ng
+        GenIDs(mpc.gen(i, GEN_BUS)) = GenIDs(mpc.gen(i, GEN_BUS)) + 1;
+        GenID = GenIDs(mpc.gen(i, GEN_BUS));
+        fprintf(fd, '%6d, %2d, %9.7g, %9.7g, %9.7g, %9.7g, %8.7g, %d, %7g, %g, %g, %g, %g, %g, %d, %g, %9.7g, %9.7g, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n', ...
+            [ mpc.gen(ig(i), GEN_BUS) GenID mpc.gen(ig(i), [PG QG QMAX QMIN VG]) ...
+            0.0 mpc.gen(ig(i), MBASE) 0.0 1.0 ...
+            0.0 0.0 1.0 (mpc.gen(ig(i), GEN_STATUS) > 0) ...
+            100.0 mpc.gen(ig(i), [PMAX PMIN]) 1.0 1.0 ...
+            0.0 1.0 0.0 1.0 ...
+            0.0 1.0 wind(i) 1.0 ...
+            ]');
+    end
 end
 %%----- TODO: add correct ID value for multiple generators at a bus
 fprintf(fd, '0 / END OF GENERATOR DATA, BEGIN BRANCH DATA\n');
