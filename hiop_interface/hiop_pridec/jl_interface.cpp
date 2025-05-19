@@ -45,6 +45,7 @@ jl_function_t*  jl_get_data_bytes;
 
 jl_function_t* jl_debug_base_case;
 jl_function_t* jl_save_solution;
+jl_function_t* jl_save_cont_solution;
 jl_function_t* jl_save_array;
 
 
@@ -86,6 +87,7 @@ void include_jl_functions()
     jl_debug_base_case = jl_get_function(jl_main_module, "debug_base_case");
 
     jl_save_solution = jl_get_function(jl_main_module, "save_solution");
+    jl_save_cont_solution = jl_get_function(jl_main_module, "save_cont_solution");
     jl_save_array = jl_get_function(jl_main_module, "save_array");
 
 }
@@ -124,6 +126,8 @@ uint8_t *JL_Interface::alloc_buffer(int size)
 
    JL_Interface::JL_Interface(): cont_sol(nullptr), base_sol(nullptr), send_buffer(nullptr), size_buffer(0)
     { 
+
+      instance = "9bus";
 
       init_MPI();
 

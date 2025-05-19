@@ -38,6 +38,7 @@ extern jl_function_t*  jl_get_data_bytes;
 
 extern jl_function_t* jl_debug_base_case;
 extern jl_function_t* jl_save_solution;
+extern jl_function_t* jl_save_cont_solution;
 extern jl_function_t* jl_save_array;
 
 
@@ -63,9 +64,6 @@ protected:
 
     jl_value_t* read_data() 
     {
-
-       instance = "9bus";
-
 
        std::string exajugo_path = std::getenv("PATH_TO_EXAJUGO");
        std::string example_path = exajugo_path+"/examples/"+instance+"/";
@@ -145,6 +143,13 @@ protected:
    void solve_contingency_prob(int i, jl_value_t* bsol) 
    {  
       cont_sol = jl_call3(jl_solve_contingency_pridec, opt_data, jl_box_int64(i+1), bsol); 
+
+     std::string fname=instance+"/contingency_"+std::to_string(i+1) +".csv";
+     jl_value_t*  jl_fname = jl_cstr_to_string(fname.c_str());
+
+    // save solution     
+     jl_call3(jl_save_cont_solution, jl_fname, opt_data, cont_sol);
+
     }
 
    void solve_contingency_recourse(int i, double& rval) 
@@ -178,7 +183,8 @@ protected:
       opt_data(jlobj.opt_data), cont_sol(nullptr), base_sol(nullptr), send_buffer(nullptr),
       size_buffer(0), instance(jlobj.instance)
       { 
-           init_MPI();
+           init_MPI();  
+
        }
   
     int64_t getDim() const {   return jl_unbox_int64(jl_call1(jl_getDim, opt_data)); }

@@ -215,6 +215,12 @@ function save_array(file_path, ptr, grad)
 
 end
 
+function save_cont_solution(file_path, ptr, prev_sol)
+
+    save_opt_data(file_path, ("objective"=>prev_sol[].cont_cost), [round(x, digits=5) for x in prev_sol[].p_g])
+
+end
+
 function save_solution(file_path, ptr, prev_sol)
 
     save_opt_data(file_path, ("objective"=>prev_sol[].base_cost), [round(x, digits=5) for x in prev_sol[].p_g])
