@@ -52,10 +52,6 @@ function fname_out = save2psse_rop(fname, mpc, rawver)
 %       - Polynomial cost tables
 %       - Section separators for other categories (left empty)
 %
-%   MATPOWER
-%   Copyright (c) 1996-2024, Power Systems Engineering Research Center (PSERC)
-%   and individual contributors (see AUTHORS file for details).
-%
 %   This file is part of MATPOWER.
 %   Covered by the 3-clause BSD License (see LICENSE file for details).
 %   See https://matpower.org for more info.

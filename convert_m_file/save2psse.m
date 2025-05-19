@@ -46,9 +46,6 @@ function fname_out = save2psse(fname, mpc, rawver)
 %   To do:
 %   SAVE2PSSE(FNAME, CASESTRUCT, VERSION) (not yet implmented)
 
-%   MATPOWER
-%   Copyright (c) 2017 Power Systems Engineering Research Center (PSERC)
-%   by Ray Zimmerman, PSERC Cornell
 %
 %   This file is part of MATPOWER.
 %   Covered by the 3-clause BSD License (see LICENSE file for details).
