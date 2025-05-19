@@ -41,6 +41,8 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
     # create model
     m = Model(NLSolver)
+    set_silent(m)
+    set_optimizer_attribute(m, "print_level", 0)
 
     # base case variables
     @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
@@ -115,13 +117,16 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
+
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT && 
        JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT &&
        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT &&
        JuMP.termination_status(m) != MOI.ALMOST_LOCALLY_SOLVED
         @show JuMP.primal_status(m)
         @show JuMP.termination_status(m)
+        println("\n solver failed to find a feasible solution.\n")
         error("solver failed to find a feasible solution.")
+
     end
     
     # aggregate deviations to report them
@@ -133,8 +138,7 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     summary[:active_nodal_imbalance] = sum(JuMP.value.(pslackm_n)) + sum(JuMP.value.(pslackp_n))
     summary[:reactive_nodal_imbalance] = sum(JuMP.value.(qslackm_n)) + sum(JuMP.value.(qslackp_n))
     summary[:branch_overloads] = .5 * sum(JuMP.value.(sslack_li)) + .5 * sum(JuMP.value.(sslack_li))
-    
-    # return solution
+
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                             convert(Vector{Float64}, JuMP.value.(b_s)),
                             JuMP.value.(p_g), JuMP.value.(q_g),
@@ -146,19 +150,20 @@ end
 # function to solve base case, possibly with recourse approximations
 
 function solve_basecase(psd::SCACOPFdata, NLSolver;
-                       recourse_f::T=nothing,   # recourse function value
-                       recourse_g::T=nothing,   # recourse function gradient
-                       recourse_H::T=nothing,   # recourse function hessian
+                       recourse_f::Union{Nothing, Function}=nothing,   # recourse function value
+                       recourse_g::Union{Nothing, Function}=nothing,   # recourse function gradient
+                       recourse_H::Union{Nothing, Function}=nothing,   # recourse function hessian
                        previous_solution::Union{Nothing,
                                                 BasecaseSolution}=nothing
-#                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
-                      )::Tuple{BasecaseSolution, Model} where {T <: Union{Nothing, Function}}    
+                      )::Tuple{BasecaseSolution, Model}     
 
     # get primal starting point
     x0 = get_primal_starting_point(psd, previous_solution)
     
     # create model
     m = Model(NLSolver)
+    set_silent(m)
+    set_optimizer_attribute(m, "print_level", 0)
 
     # base case variables
     @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
@@ -247,14 +252,19 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     end
     
     # declare objective
-    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
-               (1-psd.delta)*contingency_penalty)
+#    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
+ #              (1-psd.delta)*contingency_penalty)
     
+    @NLexpression(m, Min, production_cost + psd.delta*basecase_penalty +
+               (1-psd.delta)*contingency_penalty)
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
+
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
        JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
+        println("solver failed to find a feasible solution.")
+
         error("solver failed to find a feasible solution.")
     end
     
@@ -263,7 +273,6 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
     
-    # return solution
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                             convert(Vector{Float64}, JuMP.value.(b_s)),
                             JuMP.value.(p_g), JuMP.value.(q_g),
@@ -283,6 +292,8 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
 
     # create model
     m = Model(NLSolver)
+    set_silent(m)
+    set_optimizer_attribute(m, "print_level", 0)
 
     # base case variables
     @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
@@ -617,7 +628,7 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
         error("instance does not have contingency No ", k, " (N cont: ",
               nrow(psd.K), ").")
     end
-    
+
     # create generic contingency object
     # if length(psd.K[k, :ConType]) == 1
     #     con = GenericContingency(psd, k)
@@ -625,8 +636,6 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
     con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
-    # end
-    
     # call function for generic contingencies
     sol = solve_contingency(psd, con, basecase_solution, NLSolver,
                             previous_solution=previous_solution,
@@ -662,6 +671,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     
     # create model
     m = Model(NLSolver)
+    set_silent(m)
+    set_optimizer_attribute(m, "print_level", 0)
 
     # contingency variables
     @variable(m, psd.N[n,:EVlb] <= v_nk[n=1:nrow(psd.N)] <= psd.N[n,:EVub],
