@@ -82,6 +82,9 @@ mv ./<your_output_folder> ./../examples
 
 4. Now you are ready to run ExaJuGO using the selected test system!
 
+### TODO: 
+Ideally save2psse and save2psse_rop should be added to Matpower via a PR. We contacted Matpower in April 2025, to see how to proceed.
+
 ### Optional Step: Create Wildfire-Dependent `.con` File
 
 ⚠️ This step only applies if you're using the `CaliforniaTestSystem.m` test case.
