@@ -16,26 +16,29 @@ using SCACOPFSubproblems
 #       the swing bus
 
 function ACPF(raw_filename::String, solution_dir::String)
-	print("Reading instance at ", raw_filename, " ... ")
+	print("Reading instance at ", raw_filename, " ... \n")
     psd = SCACOPFdata(raw_filename=raw_filename)
-	println("done.\nSolving power flow problem ...")
+	println("Done reading.\nSolving power flow problem ...")
 	opt = optimizer_with_attributes(Ipopt.Optimizer,
 		                            "sb" => "no")
 	solution, summary = solve_base_power_flow(psd, opt)
 	println("Power flow solved.")
-    println("Total deviation from dispatch outside SWING buses: ", 
-            round(summary[:p_deviations] * psd.MVAbase, digits=2), "MW")
     println("Total active nodal imbalance: ",
-            round(summary[:active_nodal_imbalance] * psd.MVAbase, digits=2), "MW")
+            round(summary[:active_nodal_imbalance] * psd.MVAbase, digits=4), " MW")
     println("Total reactive nodal imbalance: ",
-            round(summary[:reactive_nodal_imbalance] * psd.MVAbase, digits=2), "MW")
+            round(summary[:reactive_nodal_imbalance] * psd.MVAbase, digits=4), " MVAr")
+    println("Maximum under voltage: ", round(summary[:max_undervoltage], digits=4), " p.u.")
+    println("Maximum over voltage: ", round(summary[:max_overvoltage], digits=4), " p.u.")
     println("Total branch overloads: ",
-            round(summary[:branch_overloads] * psd.MVAbase, digits=2), "MW")
+            round(summary[:branch_overloads] * psd.MVAbase, digits=4), " MVA")
+    println("Total deviation from dispatch outside SWING buses: ", 
+            round(summary[:p_deviations] * psd.MVAbase, digits=4), " MW")
     print("Writing solution to ", solution_dir, " ... ")
 	if !ispath(solution_dir)
 		mkpath(solution_dir)
 	end
-	write_solution(solution_dir, psd, solution)
+	write_solution(solution_dir, psd, solution)         # write solution in ARPA-E GO 1 text format
+	write_aux_solution(solution_dir, psd, solution)     # write solution in PowerWorld Auxiliary format
 	println("done.")
 	return 
 end

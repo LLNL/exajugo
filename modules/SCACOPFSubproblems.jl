@@ -8,7 +8,7 @@ export solve_base_power_flow, solve_basecase, solve_contingency, solve_random_co
        solve_SC_ACOPF, 
        SCACOPFdata, GenericContingency, 
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
-       write_solution
+       write_solution, write_aux_solution
 
 ## load external modules
 
@@ -34,6 +34,8 @@ include("SCACOPFSubproblems/huber_loss.jl")
 
 # function to solve power flow (assumes x0 gives setpoint)
 
+PRIORITY_BASE = 4.0
+
 function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
     # get primal starting point
@@ -43,8 +45,9 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     m = Model(NLSolver)
 
     # base case variables
-    @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
-              start=x0[:v_n][n])
+    @variable(m, v_n[n=1:nrow(psd.N)], start=x0[:v_n][n])
+    @variable(m, vslackm_n[n=1:nrow(psd.N)] >= 0, start=0.0)
+    @variable(m, vslackp_n[n=1:nrow(psd.N)] >= 0, start=0.0)
     @variable(m, theta_n[n=1:nrow(psd.N)], start=x0[:theta_n][n])
     @variable(m, p_li[l=1:nrow(psd.L), i=1:2], start=x0[:p_li][l,i])
     @variable(m, q_li[l=1:nrow(psd.L), i=1:2], start=x0[:q_li][l,i])
@@ -70,13 +73,17 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     # fix angle at reference bus to zero
     JuMP.fix(theta_n[psd.RefBus], 0.0, force=true)
     
+    # soft voltage bounds
+    @constraint(m, [n=1:nrow(psd.N)], v_n[n] >= psd.N[n,:Vlb] - vslackm_n[n])
+    @constraint(m, [n=1:nrow(psd.N)], v_n[n] <= psd.N[n,:Vub] + vslackp_n[n])
+    
     # add power flow constraints
     addpowerflowcons!(m, v_n, theta_n, p_li, q_li, p_ti, q_ti, b_s, p_g, q_g,
                       pslackm_n, pslackp_n, qslackm_n, qslackp_n,
                       sslack_li, sslack_ti, psd)
     
     # register Huber-like deviation penalty function
-    scale_factor = 1.0E-3
+    scale_factor = 1/PRIORITY_BASE
     dev = HuberLikePenalty(psd.a[:S] * scale_factor, psd.b[:S] * scale_factor,
                            2 * psd.a[:S] * scale_factor * 0.5 + psd.b[:S] * scale_factor,   
                                                                   # slope at 0.5 pu (e.g., 50MW) is max slope
@@ -101,13 +108,17 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     register(m, :h, 1, x -> h(x), x -> h_prime(x), x -> h_prime_prime(x))
     
     # collect technical violation penalty terms
+    v_lim_penalty = @NLexpression(m, sum(h(vslackm_n[n]) for n=1:nrow(psd.N)) +
+                                     sum(h(vslackp_n[n]) for n=1:nrow(psd.N)))
     p_bal_penalty = @NLexpression(m, sum(h(pslackm_n[n]) for n=1:nrow(psd.N)) +
                                      sum(h(pslackp_n[n]) for n=1:nrow(psd.N)))
     q_bal_penalty = @NLexpression(m, sum(h(qslackm_n[n]) for n=1:nrow(psd.N)) +
                                      sum(h(qslackp_n[n]) for n=1:nrow(psd.N)))
     lin_overload_penalty = @NLexpression(m, sum(h(sslack_li[l,i]) for l=1:nrow(psd.L), i=1:2))
     trf_overload_penalty = @NLexpression(m, sum(h(sslack_ti[t,i]) for t=1:nrow(psd.T), i=1:2))
-    violation_penalty = @NLexpression(m, p_bal_penalty + q_bal_penalty +
+    violation_penalty = @NLexpression(m, PRIORITY_BASE^2 * p_bal_penalty + 
+                                         PRIORITY_BASE^2 * q_bal_penalty +
+                                         PRIORITY_BASE * v_lim_penalty + 
                                          lin_overload_penalty + trf_overload_penalty)
     
     # declare objective
@@ -130,9 +141,11 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
                                  psd.N[psd.G_Nidx[g],:Type] != :SWING)
     
     # aggregate infeasibilities to report them
+    summary[:max_undervoltage] = maximum(JuMP.value.(vslackm_n))
+    summary[:max_overvoltage] = maximum(JuMP.value.(vslackp_n))
     summary[:active_nodal_imbalance] = sum(JuMP.value.(pslackm_n)) + sum(JuMP.value.(pslackp_n))
     summary[:reactive_nodal_imbalance] = sum(JuMP.value.(qslackm_n)) + sum(JuMP.value.(qslackp_n))
-    summary[:branch_overloads] = .5 * sum(JuMP.value.(sslack_li)) + .5 * sum(JuMP.value.(sslack_li))
+    summary[:branch_overloads] = .5 * sum(JuMP.value.(sslack_li)) + .5 * sum(JuMP.value.(sslack_ti))
     
     # return solution
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
