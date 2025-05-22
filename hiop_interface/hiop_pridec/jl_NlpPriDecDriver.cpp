@@ -30,24 +30,6 @@ JULIA_DEFINE_FAST_TLS // Required for thread-local storage in Julia
  *
  */
 
-static bool self_check(int nx, int S, double obj_value);
-
-
-static void usage(const char* exeName)
-{
-  printf(
-      "HiOp driver %s that solves a nonconvex synthetic problem of variable size in the "
-      "primal decomposition formulation. )\n",
-      exeName);
-  printf("Usage: \n");
-  printf("  '$ %s nx S -selfcheck '\n", exeName);
-  printf("Arguments, all integers, excepting strings '-selfcheck' \n");
-  printf("  'nx': # of base case variables [default 20, optional, nonnegative integer].\n");
-  printf("  'S': # of recourse/contingency problems [default 100, optional, nonnegative integer].\n");
-  printf(
-      "  '-selfcheck': compares the optimal objective with nx being 20 and "
-      "S being 100 (these two exact values must be passed as arguments). [optional]\n");
-}
 
 
 int main(int argc, char** argv)
@@ -70,11 +52,11 @@ int main(int argc, char** argv)
 
    jl_init();
 
-   include_jl_functions();
+  // include_jl_functions();
 
    JL_Interface prob_data;
 
-  int S = prob_data.number_of_contingencies(); //3; //100;
+//  int S = prob_data.number_of_contingencies(); //3; //100;
   int nc = prob_data.number_of_columns(); //6//20;
 
   int* list = new int[nc];

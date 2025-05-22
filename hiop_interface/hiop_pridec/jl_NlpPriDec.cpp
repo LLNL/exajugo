@@ -8,22 +8,22 @@
 #include <cmath>
 
 
-JL_PriDec::JL_PriDec(int ns_, int S_, const JL_Interface &opt_)
-   : ns(ns_), S(S_), nc(ns_), opt_data(opt_),
+JL_PriDec::JL_PriDec(int ns_, int S_)
+   : ns(ns_), S(S_), nc(ns_),
       evaluator_(nullptr)
 {}
 
 
-JL_PriDec::JL_PriDec(int ns_, int S_, const JL_Interface& opt_, bool include_)
-    : ns(ns_), S(S_), nc(ns_), opt_data(opt_), include_r(include_)
+JL_PriDec::JL_PriDec(int ns_, int S_, bool include_)
+    : ns(ns_), S(S_), nc(ns_), include_r(include_)
 {
   if(include_r) {
     evaluator_ = new hiopInterfacePriDecProblem::RecourseApproxEvaluator(nc, "default");
   }
 }
 
-JL_PriDec::JL_PriDec(int ns_, int S_, const JL_Interface& opt_, bool include, hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator)
-   : ns(ns_), S(S_), opt_data(opt_), include_r(include), evaluator_(evaluator)
+JL_PriDec::JL_PriDec(int ns_, int S_, bool include, hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator)
+   : ns(ns_), S(S_), include_r(include), evaluator_(evaluator)
 {}
 
 JL_PriDec::~JL_PriDec() {}
@@ -147,12 +147,14 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
   obj_ = -1e+20;
   hiopSolveStatus status;
   if(my_nlp == NULL) {
-      my_nlp = new JL_PriDec(n_, S_, opt_data);
+     // my_nlp = new JL_PriDec(n_, S_, opt_data);
+      my_nlp = new JL_PriDec(n_, S_);
   }
 
 
 //  [[maybe_unused]] 
-bool ierr = my_nlp->set_include(include_r);
+//bool ierr = 
+my_nlp->set_include(include_r);
 
 
   if(include_r) {
@@ -186,14 +188,14 @@ int rank;
 MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 
-  base_sol = opt_data.solve_base(base_sol, my_nlp->get_recourse_gradient(), my_nlp->get_recourse_hessian()); //JL_solve_base_case(opt_data);
+  opt_data.solve_base(my_nlp->get_recourse_gradient(), my_nlp->get_recourse_hessian()); //JL_solve_base_case(opt_data);
 
   double* x_vec = x.local_data();
 
+  opt_data.getSolution(x_vec);
+  obj_ = opt_data.getObjective();
 
-  opt_data.getSolution(base_sol, x_vec);
-  obj_ = opt_data.getObjective(base_sol);
-  
+  status=Solve_Success;
   if(status < 0) {
     printf("solver returned negative solve status: %d (with objective is %18.12e)\n", status, obj_);
     return status;

@@ -51,13 +51,13 @@ class JL_PriDec : public hiop::hiopInterfaceDenseConstraints
 {
 public:
 
-JL_Interface opt_data;
+//JL_Interface opt_data;
 
 double *get_recourse_gradient() const
 {
    if (evaluator_ == nullptr) return nullptr;
 
-    bool ev =  (evaluator_ == nullptr);
+//    bool ev =  (evaluator_ == nullptr);
 
     hiopVector* hograd = evaluator_->get_rgrad(); 
 
@@ -74,11 +74,11 @@ double *get_recourse_hessian() const
 }
 
 
-  JL_PriDec(int ns_, int S_, const JL_Interface&);
+  JL_PriDec(int ns_, int S_);
 
-  JL_PriDec(int ns_, int S_, const JL_Interface&, bool include_);
+  JL_PriDec(int ns_, int S_, bool include_);
 
-  JL_PriDec(int ns_, int S_, const JL_Interface&, bool include, hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator);
+  JL_PriDec(int ns_, int S_, bool include, hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator);
 
   virtual ~JL_PriDec();
 
@@ -151,20 +151,18 @@ class JL_PriDecMasterProblem : public hiopInterfacePriDecProblem
 public:
 
 JL_Interface opt_data;
-jl_value_t *base_sol;
 
   JL_PriDecMasterProblem(const JL_Interface& _opt_data)
       : 
         opt_data(_opt_data),
         obj_(-1e20),
-        sol_(nullptr),
-        base_sol(nullptr)
+        sol_(nullptr)
   {
  
     n_ = opt_data.number_of_columns();
     S_ = opt_data.number_of_contingencies();
     nc_=n_;
-    my_nlp = new JL_PriDec(n_, S_, _opt_data);
+    my_nlp = new JL_PriDec(n_, S_);
     iter=0;
   }
   virtual ~JL_PriDecMasterProblem()

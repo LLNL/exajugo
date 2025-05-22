@@ -1,9 +1,13 @@
 
 
+#include <vector>
+#include <cstring>  //for memcpy
+
 #include "jl_interface.hpp"
 
 //#include <julia.h>
 
+std::mutex julia_mutex;
 
 #define HIOP_USE_MPI
 
@@ -48,6 +52,8 @@ jl_function_t* jl_save_solution;
 jl_function_t* jl_save_cont_solution;
 jl_function_t* jl_save_array;
 
+jl_function_t* jl_serialize_object;
+jl_function_t* jl_deserialize_object;
 
 
 void include_jl_functions()
@@ -90,6 +96,9 @@ void include_jl_functions()
     jl_save_cont_solution = jl_get_function(jl_main_module, "save_cont_solution");
     jl_save_array = jl_get_function(jl_main_module, "save_array");
 
+//    jl_serialize_object = jl_get_function(jl_main_module, "serialize_object");
+ //   jl_deserialize_object = jl_get_function(jl_main_module, "deserialize_object");
+
 }
 
 jl_value_t* JL_Interface::jl_array(uint8_t *_ptr, int _size)
@@ -98,108 +107,81 @@ jl_value_t* JL_Interface::jl_array(uint8_t *_ptr, int _size)
    return (jl_value_t*) jl_ptr_to_array_1d(array_type, _ptr, _size, 0);
  } 
 
-
-void JL_Interface::release_buffer()
-{
-      if (send_buffer != nullptr)
-      {
-         delete []send_buffer; 
-         send_buffer=nullptr;
-        }
- 
-}
-
-uint8_t *JL_Interface::alloc_buffer(int size)
-{
-    if (size != size_buffer) 
-    	release_buffer();
-
-    if (send_buffer == nullptr)
-    {
-        send_buffer=new uint8_t[size];
-        size_buffer=size;
-     }
-
-   return send_buffer;
-
-}
-
-   JL_Interface::JL_Interface(): cont_sol(nullptr), base_sol(nullptr), send_buffer(nullptr), size_buffer(0)
-    { 
-
-      instance = "9bus";
-
-      init_MPI();
-
-      if (rank==source_process)
-      {
-         opt_data = read_data(); 
-         send_instance();
-      }
-      else
-        receive_instance();
-
+  jl_value_t* JL_Interface::jl_float_array(double* x_vec)
+   {
+       jl_value_t* array_type = jl_apply_array_type((jl_value_t*)jl_float64_type, 1);
+       return (jl_value_t*) jl_ptr_to_array_1d(array_type, x_vec, getDim(), 0);
    }
 
 
-void JL_Interface::send_MPI_data(jl_value_t* _dt_ptr, int tag, bool block)
-{
- 
-   int size;
-
-   send_buffer= (uint8_t *)serialize_data(size, _dt_ptr);  //jl_call2(jl_serialize_obj, pobj, refsz);
-  
-  if (tag>0)
-    for (int i=1;i<nproc;i++)
+    // Send Julia object via MPI
+    void JL_Interface::send_MPI_data(jl_value_t* _dt_ptr, int tag, bool block)
     {
+        //LOG_INFO("Sending MPI data: Rank: " << rank << " Tag: " << tag);
 
-       if (block)
-         MPI_Send(send_buffer, size, MPI_CHAR, i, tag,MPI_COMM_WORLD);
-       else
-       {
-         MPI_Request request;
+        // Serialize the Julia object
+        jl_value_t* serialized_data = jl_call1(jl_serialize_obj, _dt_ptr);
+        if (jl_exception_occurred())
+        {
+            std::cerr << "Julia exception occurred during serialization!" << std::endl;
+            exit(EXIT_FAILURE);
+        }
 
-         MPI_Isend(send_buffer, size, MPI_CHAR, i, tag,MPI_COMM_WORLD,&request);       
-       }
+        // Get serialized data as a byte array
+        jl_array_t* data_array = reinterpret_cast<jl_array_t*>(serialized_data);
+        size_t data_size = jl_array_len(data_array);
+        void* data_ptr = jl_array_data(data_array);
+
+        // Allocate and copy serialized data into the send buffer
+        send_buffer = alloc_buffer(data_size);
+        memcpy(send_buffer, data_ptr, data_size);
+
+//        LOG_DEBUG("Serialized data copied to send buffer: Rank: " << rank << " Tag: " << tag);
+
+        // Send the data using MPI
+        for (int i = 1; i < nproc; i++)
+        {
+            if (block)
+            {
+                MPI_Send(send_buffer, data_size, MPI_BYTE, i, tag, MPI_COMM_WORLD);
+            }
+            else
+            {
+                MPI_Request request;
+                MPI_Isend(send_buffer, data_size, MPI_BYTE, i, tag, MPI_COMM_WORLD, &request);
+               // MPI_Wait(&request, MPI_STATUS_IGNORE);
+                int flag;
+                MPI_Test(&request, &flag, MPI_STATUS_IGNORE);
+            }
+        }
 
     }
 
- else
-    MPI_Bcast(send_buffer, size, MPI_CHAR, source_process, MPI_COMM_WORLD);
+    void JL_Interface::init_MPI()
+    {
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+    }
 
+    // Receive Julia object via MPI
+    jl_value_t* JL_Interface::receive_MPI_data(int tag, bool block)
+    {
+//        LOG_INFO("Receiving MPI data: Rank: " << rank << " Tag: " << tag);
 
-  }
+        MPI_Status status;
+        MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
-void JL_Interface::init_MPI() 
-{    
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-	source_process=0; 
-}
+        int data_size;
+        MPI_Get_count(&status, MPI_BYTE, &data_size);
 
+        uint8_t* recv_buffer = alloc_buffer(data_size);
+        MPI_Recv(recv_buffer, data_size, MPI_BYTE, status.MPI_SOURCE, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-jl_value_t* JL_Interface::receive_MPI_data(int tag, bool block)
-{
+        jl_value_t* received_data = deserialize_data(recv_buffer, data_size);
 
-      MPI_Status status;
-      MPI_Probe(source_process, tag, MPI_COMM_WORLD, &status);
-
-      int count;
-      MPI_Get_count(&status, MPI_CHAR, &count);
-
-      uint8_t *retptr = alloc_buffer(count); //(uint8_t *)malloc(count*sizeof(uint8_t));
-
-      MPI_Recv(retptr, count, MPI_CHAR, source_process, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-      jl_value_t* pdtdata= deserialize_data(retptr, count);
-   
-      return pdtdata;
- }
-
-
-
-
-
+        free(recv_buffer);
+        return received_data;
+    }
 
 
 
