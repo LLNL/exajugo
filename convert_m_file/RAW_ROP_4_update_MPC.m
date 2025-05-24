@@ -3,10 +3,10 @@ filenames = {"load_CATS_2018-04-04.json", "load_CATS_2020-04-04.json"};
 % filenames = "load_CATS_2018-04-04.json";  % Alternative single-file format
 
 % Directory where load JSON files are stored
-json_dis = './seasonal_data/load_data';
+json_dir = './seasonal_data/load_data';
 
-% Hour of interest (1–24, following 24-hour format)
-hour = 5;
+% Hour of interest (0–23, following 24-hour format)
+hour = 5; % This coresponse to 6am
 
 % MATPOWER case file with modified California system
 Cal_filename = "CaliforniaTestSystem_fixed_imports_AM.m";
@@ -22,6 +22,15 @@ save_original = true;
 % Create the output directory if it does not exist
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
+end
+
+% boolian to know if we want to save the modified mpc as m file
+make_m_file = true;
+if make_m_file
+    new_mpc_dir = fullfile(output_dir, "Updated_MPC");
+    if ~exist(new_mpc_dir, 'dir')
+        mkdir(new_mpc_dir);
+    end
 end
 
 % Load the MATPOWER case (note: changes working directory temporarily)
@@ -44,11 +53,11 @@ for i = 1:length(filenames)
     fname = filenames{i};  % Current file name
 
     % Full path to the load JSON file
-    load_path = fullfile(json_dis, fname);
+    load_path = fullfile(json_dir, fname);
 
     % Check if the JSON file exists
     if ~isfile(load_path)
-        fprintf('The file "%s" was not found in the directory "%s".\n', fname, json_dis);
+        fprintf('The file "%s" was not found in the directory "%s".\n', fname, json_dir);
         continue;  % Skip to the next file
     end
 
@@ -64,16 +73,27 @@ for i = 1:length(filenames)
     raw_name = "case" + "_" + dateStr + "_" + sprintf('%02d', hour);
 
     % Extract load IDs and corresponding demand at the specified hour
-    [load_ids, load_demand] = extract_load_data(load_path, hour);
+    hour_index = hour + 1;
+    [load_ids, load_demand] = extract_load_data(load_path, hour_index);
 
     % Update the bus load values in the MATPOWER case
     for j = 1:length(load_demand)
-        mpc.bus(load_ids(j), 3) = load_demand(j);  % Pd (real power demand)
+        bus_loc = find(mpc.bus(:,1) == load_ids(j));
+        mpc.bus(bus_loc, 3) = load_demand(j);  % Pd (real power demand)
     end
+
+    % save as MPC as m file
+    if make_m_file
+        mpc_new_name = "CaliforniaTestSystem"+ "_" + strrep(dateStr, '-', '_') + "_" + sprintf('%02d', hour) + ".m";
+        m_path = fullfile(new_mpc_dir, mpc_new_name);
+        savecase(char(m_path), mpc);
+    end    
 
     % Save the updated case using the new raw file name
     store_files(output_dir, mpc, raw_name)
 end
+
+
 
 function store_files(output_dir, mpc, diff_load)
     % STORE_FILES generates power system data files in various formats.
