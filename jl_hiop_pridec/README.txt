@@ -2,6 +2,8 @@ Before compiling:
 
 source config.sh
 
+Entry point: jl_NlpPriDecDriver.cpp 
+
 
 Class JL_Interface was created to interface Julia objects with pridec
 
