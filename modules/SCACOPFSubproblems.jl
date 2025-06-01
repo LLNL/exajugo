@@ -247,7 +247,10 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     end
     
     # declare objective
-    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
+#    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
+ #              (1-psd.delta)*contingency_penalty)
+
+    @NLexpression(m, Min, production_cost + psd.delta*basecase_penalty +
                (1-psd.delta)*contingency_penalty)
     
     # attempt to solve SCACOPF
@@ -595,6 +598,11 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
 
+
+    println("Production Cost: " *string(JuMP.value.(production_cost))*"")
+    println("Basecase Penalty: " *string(JuMP.value.(basecase_penalty))*"")
+    println("Contingency Penalty: " *string(JuMP.value.(contingency_penalty))*"")
+
     # Intial construction of the SCACOPF solution
     solution = SCACOPFsolution(psd, BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                                     convert(Vector{Float64}, JuMP.value.(b_s)),
@@ -614,6 +622,7 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                         0.0, contin_penalty)
         contingency.cont_id = k
         add_contingency_solution!(solution, contingency)
+        println("Contingency "*string(k)*" Penalty: " *string(contin_penalty)*"")   
     end
 
     # write the information about the system
@@ -686,9 +695,14 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
               nrow(psd.K), ").")
     end
     
+    # create generic contingency object
+    # if length(psd.K[k, :ConType]) == 1
+    #     con = GenericContingency(psd, k)
+    # else
     con = GenericContingency(psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Generator)], 
                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
                                 psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
+    # end
     
     # call function for generic contingencies
     sol = solve_contingency(psd, con, basecase_solution, NLSolver,
