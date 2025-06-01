@@ -1,6 +1,6 @@
 Before compiling:
 
-source config.sh
+set PATH_TO_EXAJUGO to the exajugo installation
 
 Entry point: jl_NlpPriDecDriver.cpp 
 
