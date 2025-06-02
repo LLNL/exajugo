@@ -436,7 +436,7 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
    recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
 
    global SOLUTION_WITH_RECOURSE
-    SOLUTION_WITH_RECOURSE= Ref(solve_basecase(ptr[], get_optimimizer(), 
+   SOLUTION_WITH_RECOURSE= Ref(solve_basecase(ptr[], get_optimimizer(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
    # allocated_bytes = Base.gc_bytes() 
@@ -445,9 +445,11 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
     return SOLUTION_WITH_RECOURSE
 end
 
+
 function solve_base_case(ptr)
 
    global SOLUTION_WITH_RECOURSE
+
    SOLUTION_WITH_RECOURSE= Ref(solve_basecase(ptr[], get_optimimizer())[1])
 
    #allocated_bytes = Base.gc_bytes()

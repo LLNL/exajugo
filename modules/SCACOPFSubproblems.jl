@@ -145,14 +145,23 @@ end
 
 # function to solve base case, possibly with recourse approximations
 
+#function solve_basecase(psd::SCACOPFdata, NLSolver;
+#                       recourse_f::T=nothing,   # recourse function value
+#                       recourse_g::T=nothing,   # recourse function gradient
+#                       recourse_H::T=nothing,   # recourse function hessian
+#                       previous_solution::Union{Nothing,
+#                                                BasecaseSolution}=nothing,
+#                       output_dir::Union{Nothing, String} = nothing
+#                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
+
 function solve_basecase(psd::SCACOPFdata, NLSolver;
-                       recourse_f::T=nothing,   # recourse function value
-                       recourse_g::T=nothing,   # recourse function gradient
-                       recourse_H::T=nothing,   # recourse function hessian
+                       recourse_f::Union{Nothing, Function}=nothing,   # recourse function value
+                       recourse_g::Union{Nothing, Function}=nothing,   # recourse function gradient
+                       recourse_H::Union{Nothing, Function}=nothing,   # recourse function hessian
                        previous_solution::Union{Nothing,
                                                 BasecaseSolution}=nothing,
                        output_dir::Union{Nothing, String} = nothing
-                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
+                      )::Tuple{BasecaseSolution, Model}
     
     # get primal starting point
     x0 = get_primal_starting_point(psd, previous_solution)
@@ -294,8 +303,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                         JuMP.value.(sslack_li), JuMP.value.(sslack_ti))
     end
 
-    # return solution
-    return solution
+    return solution, m
     
 end
 
