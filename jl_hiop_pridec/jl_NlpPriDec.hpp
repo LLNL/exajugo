@@ -23,123 +23,7 @@
 #include <chrono>
 
 
-/** This file provides an example of what a user of hiop::hiopInterfacePriDecProblem
- * should implement in order to provide both the base and recourse problem to
- * hiop::hiopAlgPrimalDecomposition solver
- *
- * Base case problem f
- * sum 0.5 {(x_i-1)*(x_i-1) : i=1,...,ns}
- *           x_i >=0
- * Contingency/recourse problems r
- * r = 1/S * \sum{i=1^S} 0.5*|x+Se_i|^2
- * where {Se_i}_j = S  j=i
- *                = 0  otherwise,  i=1,2,....S
- * For i>ns, Se_i = 0
- *
- */
-
 using namespace hiop;
-
-/** JL_PriDec is the class for the base case problem. It is also
- *  a building block for the master problem.
- *  @param include_r is a boolean that determines whether a recourse objective is present
- *  @param evaluator_ contains the information for the recourse objective approximation
- *  If include_r is true, the objective of this class will contain the extra recourse term.
- *  This can be observed in the .cpp file.
- */
-class JL_PriDec : public hiop::hiopInterfaceDenseConstraints
-{
-public:
-
-//JL_Interface opt_data;
-
-double *get_recourse_gradient() const
-{
-   if (evaluator_ == nullptr) return nullptr;
-
-//    bool ev =  (evaluator_ == nullptr);
-
-    hiopVector* hograd = evaluator_->get_rgrad(); 
-
-    return hograd->local_data();
-
-}
-
-double *get_recourse_hessian() const
-{
-   if (evaluator_ == nullptr) return nullptr;
-
-    hiopVector* hograd = evaluator_->get_rhess(); 
-    return hograd->local_data();
-}
-
-
-  JL_PriDec(int ns_, int S_);
-
-  JL_PriDec(int ns_, int S_, bool include_);
-
-  JL_PriDec(int ns_, int S_, bool include, hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator);
-
-  virtual ~JL_PriDec();
-
-  bool get_prob_sizes(size_type& n, size_type& m);
-
-  virtual bool get_vars_info(const size_type& n, double* xlow, double* xupp, NonlinearityType* type);
-
-  virtual bool get_cons_info(const size_type& m, double* clow, double* cupp, NonlinearityType* type);
-
-  virtual bool eval_f(const size_type& n, const double* x, bool new_x, double& obj_value)
-  { std::cout<<" eval_f not implemented! \n"; exit(0); }
-
-  virtual bool eval_cons(const size_type& n,
-                         const size_type& m,
-                         const size_type& num_cons,
-                         const index_type* idx_cons,
-                         const double* x,
-                         bool new_x,
-                         double* cons);
-
-  // sum 0.5 {(x_i-1)*(x_{i}-1) : i=1,...,ns}
-  virtual bool eval_grad_f(const size_type& n, const double* x, bool new_x, double* gradf)
-  { std::cout<<" eval_grad_f not implemented! \n"; exit(0); }
-
-  // Implementation of the primal starting point specification //
-  virtual bool get_starting_point(const size_type& global_n, double* x0_);
-
-  virtual bool get_starting_point(const size_type& n,
-                                  const size_type& m,
-                                  double* x0_,
-                                  bool& duals_avail,
-                                  double* z_bndL0,
-                                  double* z_bndU0,
-                                  double* lambda0,
-                                  bool& slacks_avail,
-                                  double* ineq_slack);
-
-  // pass the COMM_SELF communicator since this example is only intended to run inside 1 MPI process //
-  virtual bool get_MPI_comm(MPI_Comm& comm_out);
-  virtual bool eval_Jac_cons(const size_type& n,
-                             const size_type& m,
-                             const size_type& num_cons,
-                             const index_type* idx_cons,
-                             const double* x,
-                             bool new_x,
-                             double* Jac);
-
-  // Test to see if the quadratic approxmation is defined.
-  virtual bool quad_is_defined();
-
-  /** Set up the recourse approximation: evaluator_. */
-  virtual bool set_quadratic_terms(const int& n, hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator);
-  // Set the include_r boolean.
-  virtual bool set_include(bool include);
-
-protected:
-  int ns, S;
-  int nc;
-  bool include_r = false;
-  hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator_;
-};
 
 /**
  * Master problem class based on the base case problem, which is a Ex8 class.
@@ -156,18 +40,21 @@ JL_Interface opt_data;
       : 
         opt_data(_opt_data),
         obj_(-1e20),
-        sol_(nullptr)
+        sol_(nullptr), evaluator_(nullptr)
   {
  
+     std::cout<<"!11!!\n";
+
     n_ = opt_data.number_of_columns();
     S_ = opt_data.number_of_contingencies();
     nc_=n_;
-    my_nlp = new JL_PriDec(n_, S_);
+
   }
+
   virtual ~JL_PriDecMasterProblem()
   {
     delete[] sol_;
-    delete my_nlp;
+
   }
 
   virtual hiopSolveStatus solve_master(hiopVector& x,
@@ -209,9 +96,30 @@ private:
   size_type n_;
   size_type S_;
   size_type nc_;
-  JL_PriDec* my_nlp;
+
   double obj_;
   double* sol_;
+
+hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator_;
+
+double *get_recourse_gradient() const
+{
+   if (evaluator_ == nullptr) return nullptr;
+
+    hiopVector* hograd = evaluator_->get_rgrad(); 
+    return hograd->local_data();
+
+}
+
+double *get_recourse_hessian() const
+{
+   if (evaluator_ == nullptr) return nullptr;
+
+    hiopVector* hograd = evaluator_->get_rhess(); 
+    return hograd->local_data();
+}
+
+
 };
 
 #endif
