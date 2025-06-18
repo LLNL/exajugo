@@ -1,3 +1,8 @@
+%==========================================================================
+% Generate Output Raw Files for ExaJuGo from MATPOWER Case with given Load 
+% Demand data
+%==========================================================================
+
 % List of JSON file(s) containing time-dependent load data
 filenames = {"load_CATS_2018-04-04.json", "load_CATS_2020-04-04.json"};
 % filenames = "load_CATS_2018-04-04.json";  % Alternative single-file format
@@ -5,14 +10,17 @@ filenames = {"load_CATS_2018-04-04.json", "load_CATS_2020-04-04.json"};
 % Directory where load JSON files are stored
 json_dir = './seasonal_data/load_data';
 
-% Hour of interest (0–23, following 24-hour format)
-hour = 5; % This coresponse to 6am
+% Hour of interest (0–23, following 24-hour format from midnight to 11pm)
+hour = 5; % This coresponse to 5am PST
+
+% Convert PST to UCT
+UTC_hour = mod(hour + 5, 24);
 
 % MATPOWER case file with modified California system
 Cal_filename = "CaliforniaTestSystem_fixed_imports_AM.m";
 
 % Directory to save the output files
-example_dir = './examples';            % directory to save output files
+example_dir = './../examples';            % directory to save output files
 casefile_dir = "Mod_Cal_System";          % case directory
 output_dir = fullfile(example_dir, casefile_dir);
 
@@ -61,7 +69,7 @@ for i = 1:length(filenames)
         continue;  % Skip to the next file
     end
 
-    % Extract date string from the filename using regex (format: YYYY-MM-DD)
+    % Extract date string from the filename (format: YYYY-MM-DD)
     dateStr = regexp(fname, '\d{4}-\d{2}-\d{2}', 'match');
     if isempty(dateStr)
         warning('Could not extract date from filename: %s', fname);
@@ -73,7 +81,7 @@ for i = 1:length(filenames)
     raw_name = "case" + "_" + dateStr + "_" + sprintf('%02d', hour);
 
     % Extract load IDs and corresponding demand at the specified hour
-    hour_index = hour + 1;
+    hour_index = UTC_hour + 1;
     [load_ids, load_demand] = extract_load_data(load_path, hour_index);
 
     % Update the bus load values in the MATPOWER case
