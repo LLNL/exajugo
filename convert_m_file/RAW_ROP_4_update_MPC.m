@@ -1,6 +1,6 @@
 %==========================================================================
-% Generate Output Raw Files for ExaJuGo from MATPOWER Case with given Load 
-% Demand data
+% Generate ExaJuGo Files with Time-Varying Loads and Optional .m Export 
+% from MATPOWER Case
 %==========================================================================
 
 % List of JSON file(s) containing time-dependent load data
