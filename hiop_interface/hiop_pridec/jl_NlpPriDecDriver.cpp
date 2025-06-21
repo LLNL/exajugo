@@ -7,7 +7,6 @@
 // the solver
 #include "hiopAlgPrimalDecomp.hpp"
 
-
 #include <iostream>
 #include <julia.h>
 
@@ -30,11 +29,8 @@ JULIA_DEFINE_FAST_TLS // Required for thread-local storage in Julia
  *
  */
 
-
-
 int main(int argc, char** argv)
 {
-
 
   int rank = 0;
 #ifdef HIOP_USE_MPI
@@ -50,21 +46,21 @@ int main(int argc, char** argv)
   magma_init();
 #endif
 
-   jl_init();
+  jl_init();
 
-  // include_jl_functions();
+  // JL_Interface constructor: base system and maximum number of iterations
+  JL_Interface prob_data("9bus", 10);
 
-   JL_Interface prob_data;
-
-//  int S = prob_data.number_of_contingencies(); //3; //100;
   int nc = prob_data.number_of_columns(); //6//20;
 
   int* list = new int[nc];
   for(int i = 0; i < nc; i++) list[i] = i;
 
-  
   JL_PriDecMasterProblem pridec_problem(prob_data);
+
   hiop::hiopAlgPrimalDecomposition pridec_solver(&pridec_problem, nc, list, MPI_COMM_WORLD);
+
+  pridec_solver.set_max_iteration(prob_data.get_max_iter()); // Set maximum iterations
 
   auto status = pridec_solver.run();
 
@@ -76,11 +72,12 @@ int main(int argc, char** argv)
 
   delete[] list;
 
- jl_atexit_hook(0);
+  jl_atexit_hook(0);
 
 #ifdef HIOP_USE_MAGMA
   magma_finalize();
 #endif
+
 #ifdef HIOP_USE_MPI
   MPI_Finalize();
 #endif

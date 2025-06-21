@@ -1,5 +1,29 @@
 
 
+function pointer_manager()
+
+    # IdDict to hold references
+    cpp_jl_pointers = IdDict{Int64, Any}()
+
+    # Protect an object, deleting any previous object with the same id
+    function hold_pointer(obj, id)
+
+        if haskey(cpp_jl_pointers, id)
+            release_pointer(id)
+        end
+        cpp_jl_pointers[id] = obj
+
+    end
+
+    # Unprotect (release) an object by id
+    function release_pointer(id)
+        delete!(cpp_jl_pointers, id)
+    end
+
+    return hold_pointer
+end
+
+
 #--
 #using Pkg; Pkg.add(["MPI", "Serialization", "DataFrames"])
 
@@ -50,14 +74,16 @@ end
 function load_ACOPF_dir(prob)
 
    opt_data=SCACOPFdata(prob)
-   return Ref(opt_data)
- 
+   OPF_DATA =Ref(opt_data)
+
+   return OPF_DATA
 end
 
 function load_ACOPF(rawfile, ropfile, confile)
 
    opt_data=SCACOPFdata(raw_filename=rawfile, rop_filename=ropfile, con_filename=confile)
-   return Ref(opt_data)
+   OPF_DATA =Ref(opt_data)
+   return OPF_DATA
  
 end
 
@@ -68,6 +94,17 @@ function debug_base_case(ptr)
    println(ptr[])
    println(" -----")
 end
+
+function debug_array(x)
+
+   println(" --- debug_array ---")
+   println(x)
+   println("----")
+   for (i,v) in enumerate(x)
+       println(x[i])
+   end
+end
+
 
 function build_model(ptr)
 
@@ -80,7 +117,6 @@ function get_optimimizer()
     return optimizer_with_attributes(Ipopt.Optimizer, "sb" => "no", "print_level" => 0)
 
 end
-
 
 function getModel(ptr)
 
@@ -107,35 +143,125 @@ function getCost(ptr)
    return ptr[].cont_cost
 end
 
+
 function getGradientDim(ptr)
    return length(ptr[].cont_grad)
 end
+
+   #gnorm = norm(ptr_rderivaties[].gradient[])
+   #G = ptr_rderivaties[].gradient[]/gnorm
+
 
 function getGradient(ptr, x)
    for (i,v) in enumerate(ptr[].cont_grad)
        x[i] = v
    end
+   x .= normalize(x)
 end
 
 
+function array_to_struct(prob::Ref{SCACOPFdata}, arr, array_lengths::Ref{Dict{Symbol, Int}})
+
+    MASTER_SOL= array_to_struct_generic(prob, arr, BasecaseSolution, array_lengths)
+    return MASTER_SOL
+
+end
+
+
+function array_to_struct_generic(prob, arr, T::Type, array_lengths)
+    field_types = fieldtypes(T)
+    field_names = fieldnames(T)
+
+    
+    # Prepare to extract fields from the array
+    fields = []
+    idx = 1  # Start index for the array
+    
+    # Skip the first field
+    for (name, field_type) in zip(field_names[2:end], field_types[2:end])
+        if field_type <: AbstractVector  # If the field is an array
+
+            len = array_lengths[][name]  # Get the length of this array field
+            push!(fields, arr[idx:idx+len-1])  # Extract the array slice
+            idx += len
+
+        else  # If the field is a scalar
+            push!(fields, arr[idx])  # Extract the scalar value
+            idx += 1
+
+        end
+    end
+    
+    # Ensure all array elements are consumed
+    @assert idx - 1 == length(arr) "Array size does not match structure requirements"
+    
+    # Construct the structure
+    return Ref(T(prob[], fields...))
+end
+
+function struct_to_array_generic!(s::Ref{T}, arr::Vector{Float64}) where T
+    idx = 1  # Start writing at the first index of the array
+    
+    # Skip the first field
+    for name in fieldnames(T)[2:end]
+        value = getfield(s[], name)  # Dereference the Ref to access the value
+        if value isa AbstractVector  # If the field is an array
+            for v in value
+                arr[idx] = v  # Write each element of the array into arr
+                idx += 1  # Move to the next index
+            end
+        else  # If the field is a scalar
+            arr[idx] = value  # Write the scalar value into arr
+            idx += 1  # Move to the next index
+        end
+    end
+
+    # Ensure we don't exceed the allocated size
+    @assert idx - 1 <= length(arr) "Array size exceeded during struct conversion!"
+end
+
+function define_array_lengths(prob::Ref{SCACOPFdata})
+
+    FIELD_SIZES_DICT= Ref(Dict(
+        :v_n => size(prob[].N, 1),  # Same size as the number of rows in `prob.N`
+        :theta_n => size(prob[].N, 1),  # Same size as the number of rows in `prob.N`
+        :b_s => size(prob[].SSh, 1),  # Same size as the number of rows in `prob.SSh`
+        :p_g => size(prob[].G, 1),  # Same size as the number of rows in `prob.N`
+        :q_g => size(prob[].G, 1),  # Same size as the number of rows in `prob.N`
+        :base_cost => 1,  # Assuming scalar size for `base_cost`
+        :recourse_cost => 1  # Assuming scalar size for `recourse_cost`
+    ))
+
+    return FIELD_SIZES_DICT
+end
+
+
+#function full_solution_dim(fieldsizes)
+function full_solution_dim(fieldsizes::Ref{Dict{Symbol, Int}})
+
+    return sum(values(fieldsizes[]))
+
+end
+
 function getSolution(ptr, x)
-   #println("getSolution(ptr, x)getSolution(ptr, x)")
-   #println(ptr[])
-   #println("ptr[].p_g")
-   #println(ptr[].p_g)
-   #println(" -- END--9")
+
    for (i,v) in enumerate(ptr[].p_g)
        x[i] = v
    end
+
 end
 
 
 function getObjective(ptr)
+
    return ptr[].base_cost
+
 end
 
 function getDim(ptr)
+
    return nrow(ptr[].G)
+
 end
 
 
@@ -161,9 +287,23 @@ function get_data_bytes(ptr, xdata)
    end
 end
 
-function serialize_obj(ptr)
+function serialize_obj(obj)
+    buffer = IOBuffer()
+    obj_copy = deepcopy(obj)  # Create a deep copy of the object
+    serialize(buffer, obj_copy)  # Serialize the copy
+    return take!(buffer)  # Return serialized data and the copy
+end
 
-    #println("ptrint")
+
+function deserialize_obj(data::Vector{UInt8})
+    buffer = IOBuffer(data)
+    obj = deserialize(buffer)  # Deserialize the object
+    return deepcopy(obj)  # Return a deep copy of the deserialized object
+end
+
+
+function serialize_obj_OLD(ptr)
+
     io = IOBuffer()
     serialize(io, ptr[])
     bytes = take!(io)
@@ -171,7 +311,7 @@ function serialize_obj(ptr)
     return Ref(ObjectBytes(length(bytes),bytes))
 end
 
-function deserialize_obj(bytes) 
+function deserialize_obj_OLD(bytes) 
 
     io = IOBuffer(bytes)
     received_data = deserialize(io)
@@ -188,29 +328,48 @@ function process_data(data; callback::T=nothing,  tmpcallback::T=nothing) where 
     end
 end
 
-struct RecourseDerivatives2
-    gradient::Ptr{Cdouble}
-    hessian::Ptr{Cdouble}
-    RecourseDerivatives(_grad, _hess) = new(_grad, _hess)
+#-- 
+
+struct RecourseDerivativesRef
+    gradient::Ref{Vector{Float64}}
+    hessian::Ref{Vector{Float64}}
+    RecourseDerivativesRef(_grad, _hess) = new(Ref(_grad), Ref(_hess))
+end
+
+function get_recourse_derivatives_ref(grad, hess)
+    return Ref(RecourseDerivativesRef(grad, hess))
 end
 
 
 struct RecourseDerivatives
-    gradient::Ref{Vector{Float64}}
-    hessian::Ref{Vector{Float64}}
-    RecourseDerivatives(_grad, _hess) = new(_grad, _hess)
+
+    gradient::Vector{Float64}
+    hessian::Vector{Float64}
+   # RecourseDerivativesAlloc(_grad, _hess) = new(_grad, _hess)
+    function RecourseDerivatives(_grad, _hess, _len) 
+
+        grad_copy = Vector{Float64}(undef, _len)
+        hess_copy = Vector{Float64}(undef, _len)
+
+        grad_copy .= _grad[1:_len]
+        hess_copy .= _grad[1:_len]
+
+        new(grad_copy, hess_copy)
+  
+    end
 end
 
-function get_recourse_derivatives(grad, hess)
-    return Ref(RecourseDerivatives(grad, hess))
+function get_recourse_derivatives(grad, hess, _len)
+    return Ref(RecourseDerivatives(grad, hess, _len))
 end
+
 
 using LinearAlgebra
 
 
 
 function save_array(file_path, ptr, grad)
-
+   
     save_opt_data(file_path, ("norm"=>norm(grad)), [round(x, digits=5) for x in grad])
 
 end
@@ -264,26 +423,36 @@ function save_opt_data(file_path, kval::Pair{String, Float64}, sol)
 
 end
 
+
 function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
 
-   gnorm = norm(ptr_rderivaties[].gradient[])
-   G = ptr_rderivaties[].gradient[]/gnorm
-   hnorm = norm(ptr_rderivaties[].hessian[])
-   H = ptr_rderivaties[].hessian[]/hnorm
+   G = ptr_rderivaties[].gradient
+   H = ptr_rderivaties[].hessian
 
    recourse_fx = (args...) ->  begin x = collect(args); (1/2)*(x.^2)'H + (G - H.*x)'x end
    recourse_gx = (argG, args...) ->   begin  x = collect(args);  argG .= G.*x;  end
    recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
 
-    return Ref(solve_basecase(ptr[], get_optimimizer(), 
+   SOLUTION_WITH_RECOURSE=
+              Ref(solve_basecase(ptr[], get_optimimizer(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
 
+   # allocated_bytes = Base.gc_bytes() 
+   #println("SOLUTION_WITH_RECOURSE Memory allocated: ", allocated_bytes, " bytes")
+
+   return SOLUTION_WITH_RECOURSE
 end
+
 
 function solve_base_case(ptr)
 
-   return Ref(solve_basecase(ptr[], get_optimimizer())[1])
+   SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer())[1])
+
+   #allocated_bytes = Base.gc_bytes()
+   #println("BASE Memory allocated: ", allocated_bytes, " bytes")
+
+   return SOLUTION_WITH_RECOURSE_BASE
 
 end
 
@@ -304,8 +473,9 @@ end
 function solve_contingency_pridec(ptr, i::Int64, ptr_basesol)
  
    ptr_basesol[].psd_hash = hash(ptr[])
-   return Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer()))
 
+   CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer()))
+   return CONT_SOL
 
 end
 
