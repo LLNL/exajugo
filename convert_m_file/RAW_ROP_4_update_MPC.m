@@ -14,7 +14,7 @@ json_dir = './seasonal_data/load_data';
 hour = 5; % This coresponse to 5am PST
 
 % Convert PST to UCT
-UTC_hour = mod(hour + 5, 24);
+UTC_hour = mod(hour - 17, 24);
 
 % MATPOWER case file with modified California system
 Cal_filename = "CaliforniaTestSystem_fixed_imports_AM.m";
