@@ -274,6 +274,9 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
             mkpath(output_dir)
         end
 
+        write_opt_status(splitdir(splitdir(output_dir)[1])[1], 
+                        "Summary.txt", "Basecase status", string(JuMP.termination_status(m)))
+
         write_solution(output_dir, psd, solution, filename = "/Basecase_solution.txt")
 
         write_power_flow_cons(output_dir, "/Basecase_power_constraints.txt",v_n, theta_n, 
@@ -625,6 +628,9 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         cont_pen = Vector{Float64}()
         quad_pen = Vector{Float64}()
         for k = 1:nrow(psd.K)
+
+            write_opt_status(splitdir(splitdir(output_dir)[1])[1], 
+                            "Summary.txt", "SCACOPF status", string(JuMP.termination_status(m)))
             
             if k == 1
                 write_ramp_rate(output_dir, "/SCACOPF_ramp_rate.txt", psd::SCACOPFdata, 
@@ -901,6 +907,9 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         if !ispath(output_dir)
             mkpath(output_dir)
         end
+
+        write_opt_status(splitdir(splitdir(output_dir)[1])[1], 
+                        "Summary.txt", "Contingency subproblem status", string(JuMP.termination_status(m)))
 
         if cont_idx == 1
             write_ramp_rate(output_dir, "/Contingency_ramp_rate.txt", psd::SCACOPFdata, 

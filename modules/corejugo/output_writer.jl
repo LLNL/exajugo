@@ -79,6 +79,17 @@ function write_power_flow(OutDir::String, filename::String, psd::SCACOPFdata, p_
     return nothing
 end
 
+# method to write to show if optimization algorithm converged
+
+function write_opt_status(OutDir::String, filename::String, method::String, Status::String)
+    filepath = joinpath(OutDir, filename)
+    f = open(filepath, "a")	
+    @printf(f, "%s: %s\n", method, Status)
+    close(f)
+    return nothing
+end
+
+
 # method to write the power flow for solve_SC_ACOPF
 
 function write_power_flow(OutDir::String, filename::String, psd::SCACOPFdata, p_li::Matrix{Float64}, 
