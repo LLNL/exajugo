@@ -39,17 +39,17 @@ function run_SCACOPF()
                                     "sb" => "yes")
 
     # Run SC-ACOPF
-    EF_sol = solve_SC_ACOPF(psd, opt, output_dir = mod_output_dir);
+    EF_sol = solve_SC_ACOPF(psd, opt, output_dir = output_dir);
 
     println("\nDone solving extended form.")
 
     # Run basecase
-    basecase_solution = solve_basecase(psd, opt, output_dir = mod_output_dir);
+    basecase_solution = solve_basecase(psd, opt, output_dir = output_dir);
     println("\nDone solving basecase.")
     
     # Run Contingency subproblem
     for l = 1:length(psd.K.Contingency)
-        contingency_solution = solve_contingency(psd, l, basecase_solution, opt, output_dir = mod_output_dir);
+        contingency_solution = solve_contingency(psd, l, basecase_solution, opt, output_dir = output_dir);
     end
 
     println("\nDone.")
