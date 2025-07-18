@@ -30,7 +30,7 @@ Script templates:
  - template.sbatch: this script is used by generate_sbatch.jl. 
 
 
-## Setting the environment
+## Environment configuration
 
 
 1) Set the following environment variables:
@@ -53,7 +53,9 @@ Script templates:
 
    Before executing, the code must be compiled (see **Compilation**)
 
-   1) Generate the batch:
+   1) Configure the environment (see **Environment configuration**)
+
+   2) Generate the batch:
 
       ./generate_batch.sh  instance time [contingency]
 
@@ -61,7 +63,7 @@ Script templates:
       - time execution time 
       - contingency: contingency file name without the extension, if contingency file name is NOT 'case.con'
 
-   2) Run the command displaied in last line of the output:
+   3) Run the command displaied in last line of the output:
 
       sbatch sub_<case>.sbatch
 
