@@ -28,11 +28,17 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
 
   std::cout<<" --- MASTER PROBLEM SOLVED ---\n";
 
-  status=Solve_Success;
-  if(status < 0) {
+  if (!opt_data.success())
+   {
+    status=Infeasible_Problem;
     printf("solver returned negative solve status: %d (with objective is %18.12e)\n", status, obj_);
     return status;
   }
+//  status=Solve_Success;
+//  if(status < 0) {
+//    printf("solver returned negative solve status: %d (with objective is %18.12e)\n", status, obj_);
+//    return status;
+ // }
 
   double* x_vec = x.local_data();
 

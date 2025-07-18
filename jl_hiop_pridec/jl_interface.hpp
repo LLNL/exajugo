@@ -270,7 +270,8 @@ public:
         base_sol.set(jl_call1(jl_solve_base_case, opt_data.get())); 
 
      }
-
+    
+     bool success() { return base_sol.get() != nullptr; }
 
      void solve_base(double *grad, double *hess) 
      {
