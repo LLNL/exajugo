@@ -15,8 +15,11 @@
 #define MPI_COMM_WORLD 0
 #endif
 
+const char preferred_separator = '/';
+
 
 jl_function_t* jl_load_ACOPF;
+jl_function_t* jl_load_ACOPF_instance;
 jl_function_t* jl_copy_ACOPF;
 
 jl_function_t* jl_number_of_contingencies;
@@ -57,14 +60,8 @@ jl_function_t* jl_full_solution_dim;
 jl_function_t* jl_define_array_lengths;
 
 jl_function_t* jl_get_data_ptr;
+jl_function_t* jl_hold_pointer;
 
-/*
-jl_value_t* opt_data=nullptr;   // Julia object for optimization data
-jl_value_t* base_sol=nullptr;   // Julia object for base solution
-jl_value_t* cont_sol=nullptr;   // Julia object for contingency solution
-jl_value_t* fieldsizes=nullptr;
-
-*/
 
 void include_jl_functions()
 {
@@ -73,8 +70,10 @@ void include_jl_functions()
     std::string command = "include(\"" + std::string(julia_file_path) + "\")"; 
 
     jl_eval_string(command.c_str());
+    jl_eval_string("hold_pointer = pointer_manager()");
     
     jl_load_ACOPF = jl_get_function(jl_main_module, "load_ACOPF");
+    jl_load_ACOPF_instance = jl_get_function(jl_main_module, "load_ACOPF_instance");
     jl_copy_ACOPF = jl_get_function(jl_main_module, "copy_ACOPF");
 
     jl_number_of_contingencies = jl_get_function(jl_main_module, "number_of_contingencies");
@@ -113,7 +112,8 @@ void include_jl_functions()
     jl_full_solution_dim = jl_get_function(jl_main_module, "full_solution_dim");
     jl_define_array_lengths = jl_get_function(jl_main_module, "define_array_lengths");
 
-    jl_get_data_ptr = jl_get_function(jl_main_module, "get_data_ptr");
+    jl_hold_pointer = jl_get_function(jl_main_module, "hold_pointer");
+
 }
 
 
@@ -125,18 +125,16 @@ jl_value_t* JL_Interface::jl_array(double *_ptr, int _size)
 
 
 // Constructor
-JL_Interface::JL_Interface(const std::string& _inst, const int _max_it) 
-   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), 
-   opt_data(nullptr), base_sol(nullptr),  cont_sol(nullptr), fieldsizes(nullptr)
+JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst, const int _max_it) 
+   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output)
 {
-   // jl_gc_enable(0);
     include_jl_functions(); // Load Julia functions
 
     init_MPI(); // Initialize MPI
-    set_data_ptr(read_data());
+    opt_data.set(read_data());
  
-    fieldsizes=jl_call1(jl_define_array_lengths, get_data_ptr()); 
-    size_buffer = jl_unbox_int64(jl_call1(jl_full_solution_dim, fieldsizes));
+    fieldsizes.set(get_field_data()); 
+    size_buffer = jl_unbox_int64(jl_call1(jl_full_solution_dim, fieldsizes.get()));
 }
 
 // Send Julia object via MPI
@@ -181,10 +179,11 @@ jl_value_t* JL_Interface::receive_MPI_data(int tag, bool block)
     MPI_Get_count(&status, MPI_DOUBLE, &data_size);
 
     data_buffer = alloc_buffer(data_size);
+
     MPI_Recv(data_buffer, data_size, MPI_DOUBLE, status.MPI_SOURCE, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
     jl_value_t* jl_data_buffer= jl_array(data_buffer, data_size);
-    jl_value_t* received_data = jl_call3(jl_array_to_struct, get_data_ptr(), jl_data_buffer, fieldsizes);
+    jl_value_t* received_data = jl_call3(jl_array_to_struct, opt_data.get(), jl_data_buffer, fieldsizes.get());
 
     return received_data;
 }

@@ -162,10 +162,12 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                                                 BasecaseSolution}=nothing,
                        output_dir::Union{Nothing, String} = nothing
                       )::Tuple{BasecaseSolution, Model}
-    
+
+    println(" --- get_primal_starting_point ---")    
     # get primal starting point
     x0 = get_primal_starting_point(psd, previous_solution)
-    
+    println(" --- primel point ---")
+
     # create model
     m = Model(NLSolver)
 

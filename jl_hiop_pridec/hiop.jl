@@ -1,8 +1,59 @@
 
+for pkg in ["CSV", "Revise"]
+    try
+        @eval using $(Symbol(pkg))
+    catch
+        import Pkg
+        Pkg.add(pkg)
+        @eval using $(Symbol(pkg))
+    end
+end
+
+using Dates
+
+start_time = time()
+
+#"linear_solver" => "ma27",
+
+function get_optimimizer()
+
+    return optimizer_with_attributes(Ipopt.Optimizer, "sb" => "yes")
+
+end
+
+
+function pointer_manager()
+
+    # IdDict to hold references
+    cpp_jl_pointers = IdDict{Int64, Any}()
+
+    # Protect an object, deleting any previous object with the same id
+    function hold_pointer(obj, id)
+
+        if haskey(cpp_jl_pointers, id)
+            release_pointer(id)
+        end
+        cpp_jl_pointers[id] = obj
+
+    end
+
+    # Unprotect (release) an object by id
+    function release_pointer(id)
+        delete!(cpp_jl_pointers, id)
+    end
+
+    return hold_pointer
+end
+
+#hold_pointer = pointer_manager()
 
 #--
 #using Pkg; Pkg.add(["MPI", "Serialization", "DataFrames"])
 
+if !haskey(ENV, "PATH_TO_EXAJUGO")
+    println("'PATH_TO_EXAJUGO' not set!")
+    exit(1)
+end
 
 push!(LOAD_PATH, string(ENV["PATH_TO_EXAJUGO"], "/modules"))
 push!(LOAD_PATH, string(ENV["PATH_TO_EXAJUGO"], "/modules/SCACOPFSubproblems.jl"))
@@ -17,6 +68,7 @@ using Serialization
 include(string(ENV["PATH_TO_EXAJUGO"], "/modules/SCACOPFSubproblems/starting_point.jl"))
 include(string(ENV["PATH_TO_EXAJUGO"], "/modules/corejugo/solution_evaluator.jl"))
 
+println(" loaded package: ", ENV["PATH_TO_EXAJUGO"])
 
 #--- python tslope desabled
 #include(string(ENV["PATH_TO_TSSLOPE"], "/init.jl"))
@@ -47,18 +99,9 @@ function test_model(refmodel)
 
 end
 
-OPF_DATA=nothing;
-
-function get_data_ptr()
-
-   return OPF_DATA
-
-end
-
 function load_ACOPF_dir(prob)
 
    opt_data=SCACOPFdata(prob)
-   global OPF_DATA
    OPF_DATA =Ref(opt_data)
 
    return OPF_DATA
@@ -67,13 +110,15 @@ end
 function load_ACOPF(rawfile, ropfile, confile)
 
    opt_data=SCACOPFdata(raw_filename=rawfile, rop_filename=ropfile, con_filename=confile)
-   global OPF_DATA
    OPF_DATA =Ref(opt_data)
-
    return OPF_DATA
-
-#   return Ref(opt_data)
  
+end
+
+function load_ACOPF_instance(case)
+
+    return load_ACOPF(get_instance_files(case)...)
+
 end
 
 #-- used for debug
@@ -98,12 +143,6 @@ end
 function build_model(ptr)
 
    return Ref(basecase_model_pridec(ptr[]))
-
-end
-
-function get_optimimizer()
- 
-    return optimizer_with_attributes(Ipopt.Optimizer, "sb" => "no", "print_level" => 0)
 
 end
 
@@ -148,20 +187,14 @@ function getGradient(ptr, x)
    x .= normalize(x)
 end
 
-#function array_to_struct(prob::Ref{SCACOPFdata}, arr, array_lengths::Ref{Dict{Symbol, Int}})
-
-MASTER_SOL = nothing
 
 function array_to_struct(prob::Ref{SCACOPFdata}, arr, array_lengths::Ref{Dict{Symbol, Int}})
 
-    global MASTER_SOL
     MASTER_SOL= array_to_struct_generic(prob, arr, BasecaseSolution, array_lengths)
     return MASTER_SOL
 
 end
 
-#::Vector{Float64}
-#function array_to_struct_generic(prob::Ref{SCACOPFdata}, arr, T::Type, array_lengths::Ref{Dict{Symbol, Int}})
 
 function array_to_struct_generic(prob, arr, T::Type, array_lengths)
     field_types = fieldtypes(T)
@@ -215,12 +248,8 @@ function struct_to_array_generic!(s::Ref{T}, arr::Vector{Float64}) where T
     @assert idx - 1 <= length(arr) "Array size exceeded during struct conversion!"
 end
 
-#:psd_hash, :v_n, :theta_n, :b_s, :p_g, :q_g, :base_cost, :recourse_cost)
-
-FIELD_SIZES_DICT=nothing
-
 function define_array_lengths(prob::Ref{SCACOPFdata})
-    global FIELD_SIZES_DICT
+
     FIELD_SIZES_DICT= Ref(Dict(
         :v_n => size(prob[].N, 1),  # Same size as the number of rows in `prob.N`
         :theta_n => size(prob[].N, 1),  # Same size as the number of rows in `prob.N`
@@ -230,11 +259,13 @@ function define_array_lengths(prob::Ref{SCACOPFdata})
         :base_cost => 1,  # Assuming scalar size for `base_cost`
         :recourse_cost => 1  # Assuming scalar size for `recourse_cost`
     ))
+
     return FIELD_SIZES_DICT
 end
 
 
-function full_solution_dim(fieldsizes)
+#function full_solution_dim(fieldsizes)
+function full_solution_dim(fieldsizes::Ref{Dict{Symbol, Int}})
 
     return sum(values(fieldsizes[]))
 
@@ -373,13 +404,45 @@ end
 
 function save_cont_solution(file_path, ptr, prev_sol)
 
+  try
     save_opt_data(file_path, ("objective"=>prev_sol[].cont_cost), [round(x, digits=5) for x in prev_sol[].p_g])
+
+# Given file_path
+    dir = dirname(file_path)
+    base = basename(file_path)
+    stem = splitext(base)[1]
+    new_name = string(stem, "_iterations.csv")
+    new_path = joinpath(dir, new_name)
+
+    save_opt_iterations(new_path, ("objective"=>prev_sol[].cont_cost))
+
+  catch e
+    println(" *** Exception ocorred saving coningency solution: ", e, " ***")
+    flush(stdout)
+  end
 
 end
 
 function save_solution(file_path, ptr, prev_sol)
 
+  try
+
+    println(" *** save_solution called! ***")
     save_opt_data(file_path, ("objective"=>prev_sol[].base_cost), [round(x, digits=5) for x in prev_sol[].p_g])
+    println(" *** save_opt_data called! ***")
+
+# Given file_path
+    dir = dirname(file_path)
+    base = basename(file_path)
+    stem = splitext(base)[1]
+    new_name = string(stem, "_iterations.csv")
+    new_path = joinpath(dir, new_name)
+
+    save_opt_iterations(new_path, ("objective"=>prev_sol[].base_cost))
+  catch e
+    println(" *** Exception ocorred saving base case solution: ", e," ***")
+    flush(stdout)
+  end
 
 end
 
@@ -387,6 +450,7 @@ function save_opt_data(file_path, kval::Pair{String, Float64}, sol)
 
   fd_name = kval.first
   value = kval.second
+  
   if isfile(file_path)
         # If the file exists, read it
         existing_data = CSV.read(file_path, DataFrame)
@@ -420,42 +484,136 @@ function save_opt_data(file_path, kval::Pair{String, Float64}, sol)
 
 end
 
-#x .= normalize(x)
 
-SOLUTION_WITH_RECOURSE=nothing
+function save_opt_iterations(file_path, kval::Pair{String, Float64})
+
+  global start_time
+  exec_time = time() - start_time  # End timer
+
+  fd_name = kval.first
+  value = kval.second
+
+  # Define the column order explicitly
+  col_names = [:iteration, Symbol(fd_name), :execution_time, :time_stamp]
+
+  if isfile(file_path)
+        # If the file exists, read it
+        existing_data = CSV.read(file_path, DataFrame)
+        
+        # Determine the number of rows in the existing file
+        num_rows = size(existing_data, 1)
+        
+      #  columns = Dict(
+      #  :iteration => num_rows,
+      #  Symbol(fd_name) => value, 
+      #  :execution_time => exec_time, 
+      #  :time_stamp => now())
+
+        # Create a new row with iteration set to num_rows and the given objective
+       # new_data = DataFrame(columns)
+        
+
+        # Create a NamedTuple to ensure column order
+        new_row = (; iteration=num_rows, Symbol(fd_name)=>value, execution_time=exec_time, time_stamp=now())
+        new_data = DataFrame([new_row], col_names)
+
+        # Append the new row to the existing data
+        updated_data = vcat(existing_data, new_data)
+        
+        # Write the updated data back to the file
+        CSV.write(file_path, updated_data)
+    else
+        # If the file does not exist, create it with iteration set to 0 and the given objective
+#        columns = Dict(
+#        :iteration => 0,
+#        Symbol(fd_name) => value, 
+#        :execution_time => exec_time, 
+#        :time_stamp => now())
+#        new_data = DataFrame(columns)
+
+# Create a single row as a NamedTuple in a vector
+        row = (; iteration=0, Symbol(fd_name)=>value, execution_time=exec_time, time_stamp=now())
+        new_data = DataFrame([row], col_names)
+        CSV.write(file_path, new_data)
+    end
+
+end
+
 
 function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
 
-#   G = ptr_rderivaties[].gradient[]
-#   H = ptr_rderivaties[].hessian[]
+   global start_time
+   start_time = time()
+
    G = ptr_rderivaties[].gradient
    H = ptr_rderivaties[].hessian
+
+   println("\n --- Base case with recourse called! --- \n")
 
    recourse_fx = (args...) ->  begin x = collect(args); (1/2)*(x.^2)'H + (G - H.*x)'x end
    recourse_gx = (argG, args...) ->   begin  x = collect(args);  argG .= G.*x;  end
    recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
 
-   global SOLUTION_WITH_RECOURSE
-   SOLUTION_WITH_RECOURSE= Ref(solve_basecase(ptr[], get_optimimizer(), 
+   SOLUTION_WITH_RECOURSE=
+              Ref(solve_basecase(ptr[], get_optimimizer(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
+
+   println("\n --- Base case with recourse! --- \n")
+
    # allocated_bytes = Base.gc_bytes() 
    #println("SOLUTION_WITH_RECOURSE Memory allocated: ", allocated_bytes, " bytes")
 
-    return SOLUTION_WITH_RECOURSE
+   return SOLUTION_WITH_RECOURSE
 end
 
 
 function solve_base_case(ptr)
 
-   global SOLUTION_WITH_RECOURSE
+   global start_time
+   start_time = time()
 
-   SOLUTION_WITH_RECOURSE= Ref(solve_basecase(ptr[], get_optimimizer())[1])
+   println("\n --- Base case called! --- \n")
+   SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer())[1])
+  # SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer()))
+   println("\n --- Base case solved! --- \n")
 
    #allocated_bytes = Base.gc_bytes()
    #println("BASE Memory allocated: ", allocated_bytes, " bytes")
 
-   return SOLUTION_WITH_RECOURSE
+   return SOLUTION_WITH_RECOURSE_BASE
+
+end
+
+
+function get_instance_files(case)
+
+    if haskey(ENV, "PATH_TO_INSTANCES")
+        path_to_instances = ENV["PATH_TO_INSTANCES"]
+
+    else
+        println("'PATH_TO_INSTANCES' not set!")
+        exit(1)
+    end
+
+    example_path = joinpath(path_to_instances, case, "")
+  
+    raw_file = example_path * "case.raw"
+    rop_file = example_path * "case.rop"
+    if haskey(ENV, "CONTINGENCY_FILE")
+       confile = ENV["CONTINGENCY_FILE"]
+
+    else
+       confile = "case"
+    end
+    con_file = example_path * confile *".con"
+
+    return raw_file, rop_file, con_file
+end
+
+function get_number_of_contingencies(case)
+
+    return number_of_contingencies(load_ACOPF(get_instance_files(case)...))
 
 end
 
@@ -472,13 +630,14 @@ function number_of_columns(ptr)
 
 end
 
-CONT_SOL=nothing
 
 function solve_contingency_pridec(ptr, i::Int64, ptr_basesol)
  
+   global start_time
+   start_time = time()
+
    ptr_basesol[].psd_hash = hash(ptr[])
 
-   global CONT_SOL
    CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer()))
    return CONT_SOL
 

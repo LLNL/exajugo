@@ -43,12 +43,9 @@ JL_Interface opt_data;
         sol_(nullptr), evaluator_(nullptr)
   {
  
-     std::cout<<"!11!!\n";
-
     n_ = opt_data.number_of_columns();
     S_ = opt_data.number_of_contingencies();
     nc_=n_;
-
   }
 
   virtual ~JL_PriDecMasterProblem()

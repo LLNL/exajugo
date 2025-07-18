@@ -19,7 +19,7 @@ JULIA_DEFINE_FAST_TLS // Required for thread-local storage in Julia
 
 #include <cstdlib>
 #include <string>
-
+#include <climits>    // for INT_MAX
 
 /**t
  * Driver for PriDec Example 1 that illustrates the use of hiop::hiopAlgPrimalDecomposition
@@ -29,8 +29,14 @@ JULIA_DEFINE_FAST_TLS // Required for thread-local storage in Julia
  *
  */
 
+#include <filesystem>   // for std::filesystem
+//const char preferred_separator = '/';
+//namespace fs = std::filesystem;
+
 int main(int argc, char** argv)
 {
+   std::string instance;
+
 
   int rank = 0;
 #ifdef HIOP_USE_MPI
@@ -42,14 +48,55 @@ int main(int argc, char** argv)
   assert(MPI_SUCCESS == ierr);
 #endif
 
+std::string sep(1, fs::path::preferred_separator); // convert char to string
+
+std::string defoutput = "output"+sep+"rank_" + std::to_string(rank)+sep;
+// Assume 'rank' is already defined as an int
+std::string outputDir = std::getenv("OUTPUT_DIR_RANK") ? std::getenv("OUTPUT_DIR_RANK"): defoutput;
+if (!outputDir.empty() && outputDir.back() != fs::path::preferred_separator  && outputDir.back() != '\\') {
+    outputDir += fs::path::preferred_separator;
+}
+
+// Create the directory (including parent directories if needed)
+fs::create_directories(outputDir);
+
 #ifdef HIOP_USE_MAGMA
   magma_init();
 #endif
 
+    if (argc > 1) {
+       instance = argv[1];
+       if (rank==0)
+          std::cout << " Instance: " << instance << std::endl;
+
+    } else {
+       if (rank==0)
+          std::cout << " Instance not provided! Execution aborted!\n\n" << std::endl;
+      exit(0);
+    }
+   
   jl_init();
 
+  int max_iter = INT_MAX;
+  const char* env_max_iter = std::getenv("MAX_ITER");
+  if (env_max_iter) 
+  {
+    max_iter = std::atoi(env_max_iter);
+    }
+
   // JL_Interface constructor: base system and maximum number of iterations
-  JL_Interface prob_data("9bus", 10);
+  JL_Interface prob_data(outputDir, instance, 10);
+
+  int ncont = prob_data.number_of_contingencies(); //6//20;
+  if (rank==0)
+     std::cout<<" # of contingencies: "<<ncont<<"\n\n";\
+  if (comm_size != ncont+1)
+  {
+       if (rank==0)
+          std::cout << " Total number of processes must be "<<ncont+1<<"! Execution aborted!\n\n" << std::endl;
+      exit(0);
+
+  }
 
   int nc = prob_data.number_of_columns(); //6//20;
 
@@ -60,6 +107,7 @@ int main(int argc, char** argv)
 
   hiop::hiopAlgPrimalDecomposition pridec_solver(&pridec_problem, nc, list, MPI_COMM_WORLD);
 
+  std::cout<<" prob_data.get_max_iter(): "<<prob_data.get_max_iter()<<"\n\n";
   pridec_solver.set_max_iteration(prob_data.get_max_iter()); // Set maximum iterations
 
   auto status = pridec_solver.run();

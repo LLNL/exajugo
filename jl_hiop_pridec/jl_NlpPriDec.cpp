@@ -21,14 +21,12 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
+ 
+  std::cout<<" --- Solving base problem ... ---\n";
   // needs to fix to get the solver status
   opt_data.solve_base(this->get_recourse_gradient(), this->get_recourse_hessian()); //JL_solve_base_case(opt_data);
 
-  double* x_vec = x.local_data();
-
-  opt_data.getSolution(x_vec);
-  obj_ = opt_data.getObjective();
+  std::cout<<" --- MASTER PROBLEM SOLVED ---\n";
 
   status=Solve_Success;
   if(status < 0) {
@@ -36,10 +34,18 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
     return status;
   }
 
+  double* x_vec = x.local_data();
+
+  opt_data.getSolution(x_vec);
+
+  obj_ = opt_data.getObjective();
+
+
   if(sol_ == nullptr) {
     sol_ = new double[n_];
   }
 
+  std::cout<<"\n Solution obtained! \n";
   memcpy(sol_, x_vec, n_ * sizeof(double));
 
   // send full solution to the contingency problems

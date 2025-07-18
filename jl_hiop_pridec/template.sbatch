@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --job-name=jl_pridec
+#SBATCH --time=$TIME:00:00
+#SBATCH --ntasks=$NTASKS
+
+export CONTINGENCY_FILE=$CONT_FILE
+export MAX_ITER=$MAX_ITER
+
+mkdir -p output
+export OUTPUT_DIR=output/$CASE_$(date +%Y%m%d_%H%M%S)
+
+# Run the executable using srun
+
+srun --output=$OUTPUT_DIR/rank_%t/log_$CASE_%j_%t.out \
+     --error=$OUTPUT_DIR/rank_%t/log_$CASE_%j_%t.err \
+     bash -c 'export OUTPUT_DIR_RANK="'$OUTPUT_DIR'/rank_${SLURM_PROCID}"/; ./jl_NlpPriDec.exe $CASE'
