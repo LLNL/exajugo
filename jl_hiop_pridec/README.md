@@ -69,8 +69,8 @@ Script templates:
 
 ## Outputs
 
-   The output directory are as follows.
-   The root output directory: case_$(date +%Y%m%d_%H%M%S)
+   All output is written to a subdirectory of the directory "output".
+   The root output directory for a given case: case_$(date +%Y%m%d_%H%M%S)
    All output files are saved in different directories according to the ranks of the processes: rank_0, rank_1, ...
 
 

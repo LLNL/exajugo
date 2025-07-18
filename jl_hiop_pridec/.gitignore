@@ -3,3 +3,6 @@ output
 config.sh
 sub_*
 ipopt.opt
+*.err
+*.out
+*.core

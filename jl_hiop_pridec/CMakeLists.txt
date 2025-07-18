@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.18)
 project(jl_NlpPriDec C CXX Fortran)
 
 find_package(MPI REQUIRED COMPONENTS C CXX Fortran)
-
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
@@ -16,15 +15,26 @@ target_include_directories(jl_NlpPriDec.exe PRIVATE
     $ENV{JULIA_DIR}include/julia
 )
 
+target_link_directories(jl_NlpPriDec.exe PRIVATE
+    $ENV{JULIA_DIR}lib
+)
+
 target_link_libraries(jl_NlpPriDec.exe
     hiop
     ${MPI_C_LIBRARIES}
     ${BLAS_LIBRARIES}
     ${LAPACK_LIBRARIES}
-    -L$ENV{JULIA_DIR}lib
-    -Wl,-rpath,$ENV{JULIA_DIR}lib
-    -ljulia
-    -static-libstdc++
-    -std=gnu++17
-    -lstdc++fs
+    julia
+    stdc++fs # Remove if using GCC 9+
+)
+
+set_target_properties(jl_NlpPriDec.exe PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+)
+
+# Set rpath for Julia
+set_target_properties(jl_NlpPriDec.exe PROPERTIES
+    BUILD_RPATH "$ENV{JULIA_DIR}lib"
+    INSTALL_RPATH "$ENV{JULIA_DIR}lib"
 )
