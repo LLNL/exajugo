@@ -2,3 +2,4 @@ build
 output
 config.sh
 sub_*
+ipopt.opt
