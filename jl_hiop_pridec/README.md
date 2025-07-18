@@ -70,7 +70,23 @@ Script templates:
 ## Outputs
 
    All output is written to a subdirectory of the directory "output".
+
    The root output directory for a given case: case_$(date +%Y%m%d_%H%M%S)
+
    All output files are saved in different directories according to the ranks of the processes: rank_0, rank_1, ...
 
+   Outputs for rank 0 for a given case (bnus system):
 
+      - solution.csv: solution for each iteration;
+      - solution_iterations.csv: objective value and execution time for each iteration;
+      - log_case_JOBNUMBER_0.out: screen output;
+      - log_case_JOBNUMBER_0.err: slurm errors;
+      - hessian.csv: hessian value for each iteration;
+      - gradient.csv: gradient value for each iteration.
+   
+   Outputs for rank i > 0 for a given case (bnus system):
+
+      - contingency_i.csv: contingency subproblem solution for each iteration;
+      - contingency_i_iterations.csv: contingency subproblem objective value and execution time for each iteration;
+      - log_case_JOBNUMBER_i.out: screen output;
+      - log_case_JOBNUMBER_i.err: slurm errors.
