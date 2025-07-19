@@ -86,7 +86,7 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
     }
 
   // JL_Interface constructor: base system and maximum number of iterations
-  JL_Interface prob_data(outputDir, instance, 10);
+  JL_Interface prob_data(outputDir, instance, max_iter);
 
   int ncont = prob_data.number_of_contingencies(); //6//20;
   if (rank==0)
@@ -108,7 +108,6 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
 
   hiop::hiopAlgPrimalDecomposition pridec_solver(&pridec_problem, nc, list, MPI_COMM_WORLD);
 
-  std::cout<<" prob_data.get_max_iter(): "<<prob_data.get_max_iter()<<"\n\n";
   pridec_solver.set_max_iteration(prob_data.get_max_iter()); // Set maximum iterations
 
   auto status = pridec_solver.run();

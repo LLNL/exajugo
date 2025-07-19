@@ -28,11 +28,6 @@ target_link_libraries(jl_NlpPriDec.exe
     #stdc++fs # Remove if using GCC 9+
 )
 
-set_target_properties(jl_NlpPriDec.exe PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-)
-
 # Set rpath for Julia
 set_target_properties(jl_NlpPriDec.exe PROPERTIES
     BUILD_RPATH "$ENV{JULIA_DIR}lib"
