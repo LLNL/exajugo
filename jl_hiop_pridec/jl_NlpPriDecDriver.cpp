@@ -48,17 +48,18 @@ int main(int argc, char** argv)
   assert(MPI_SUCCESS == ierr);
 #endif
 
-std::string sep(1, fs::path::preferred_separator); // convert char to string
+//std::string sep(1, fs::path::preferred_separator); // convert char to string
+std::string sep(1, preferred_separator); // convert char to string
 
 std::string defoutput = "output"+sep+"rank_" + std::to_string(rank)+sep;
 // Assume 'rank' is already defined as an int
 std::string outputDir = std::getenv("OUTPUT_DIR_RANK") ? std::getenv("OUTPUT_DIR_RANK"): defoutput;
-if (!outputDir.empty() && outputDir.back() != fs::path::preferred_separator  && outputDir.back() != '\\') {
-    outputDir += fs::path::preferred_separator;
+if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.back() != '\\') {
+    outputDir += preferred_separator;
 }
 
 // Create the directory (including parent directories if needed)
-fs::create_directories(outputDir);
+//fs::create_directories(outputDir);
 
 #ifdef HIOP_USE_MAGMA
   magma_init();

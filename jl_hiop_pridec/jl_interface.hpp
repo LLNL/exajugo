@@ -14,7 +14,8 @@
 #include <memory>
 
 #include <filesystem>
-namespace fs = std::filesystem;
+//namespace fs = std::filesystem;
+extern const char preferred_separator;
 
 extern jl_function_t* jl_load_ACOPF;
 extern jl_function_t* jl_load_ACOPF_instance;
@@ -102,7 +103,8 @@ private:
 
 // Assumes outputDir is defined elsewhere and ends WITHOUT a separator
 std::string buildOutputPath(const std::string& fileName) {
-    char sep = fs::path::preferred_separator;
+   // char sep = fs::path::preferred_separator;
+    char sep = preferred_separator;
     std::string result = outputDir;
     if (!result.empty() && result.back() != sep) {
         result += sep;
@@ -144,7 +146,8 @@ protected:
     {
 
        std::string exajugo_path = std::getenv("PATH_TO_INSTANCES");
-       std::string example_path = exajugo_path+instance+fs::path::preferred_separator ;
+       //std::string example_path = exajugo_path+instance+fs::path::preferred_separator;
+       std::string example_path = exajugo_path+instance+preferred_separator;
 
        jl_value_t* jl_opt_instance = jl_cstr_to_string(instance.c_str());
 
