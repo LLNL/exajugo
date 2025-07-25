@@ -1,3 +1,3 @@
 #!/bin/bash
 
-julia generate_sbatch.jl $@
+julia julia_src/generate_sbatch.jl $@

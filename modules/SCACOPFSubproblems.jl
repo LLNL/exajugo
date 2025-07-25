@@ -261,7 +261,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
 #    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
  #              (1-psd.delta)*contingency_penalty)
 
-    @NLexpression(m, Min, production_cost + psd.delta*basecase_penalty +
+    @NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
                (1-psd.delta)*contingency_penalty)
     
     # attempt to solve SCACOPF

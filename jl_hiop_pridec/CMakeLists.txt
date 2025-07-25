@@ -11,7 +11,12 @@ find_package(LAPACK REQUIRED)
 include_directories($ENV{HIOP_INCLUDE_DIR})
 link_directories($ENV{HIOP_LIBRARY_DIR})
 
-add_executable(jl_NlpPriDec.exe jl_NlpPriDec.cpp jl_interface.cpp jl_NlpPriDecDriver.cpp)
+add_executable(jl_NlpPriDec.exe
+    src/jl_NlpPriDec.cpp
+    src/jl_interface.cpp
+    src/jl_NlpPriDecDriver.cpp
+)
+
 
 target_include_directories(jl_NlpPriDec.exe PRIVATE
     ${MPI_C_INCLUDE_DIRS}

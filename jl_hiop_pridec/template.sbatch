@@ -5,6 +5,7 @@
 
 export CONTINGENCY_FILE=$CONT_FILE
 export MAX_ITER=$MAX_ITER
+export JULIA_SRC_FILE=./julia_src/hiop.jl
 
 mkdir -p output
 export OUTPUT_DIR=output/$CASE_$(date +%Y%m%d_%H%M%S)
