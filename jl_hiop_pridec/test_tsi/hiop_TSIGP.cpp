@@ -9,7 +9,7 @@ int main() {
     // Step 1: Initialize Julia
     jl_init();
 
-    const char* julia_file_path = "hiop.jl";
+    const char* julia_file_path =std::getenv("JULIA_SRC_FILE");
 
     std::string command = "include(\"" + std::string(julia_file_path) + "\")";
     jl_eval_string(command.c_str());

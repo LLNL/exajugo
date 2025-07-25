@@ -1,6 +1,17 @@
 
+try
+    using MAT
+catch e
+    if isa(e, ArgumentError) && occursin("MAT", e.msg)
+        import Pkg
+        Pkg.add("MAT")
+        using MAT
+    else
+        rethrow(e)
+    end
+end
 
-include("hiop.jl")
+include(ENV["JULIA_SRC_FILE"])
 include("exajugo_call.jl")
 
 
