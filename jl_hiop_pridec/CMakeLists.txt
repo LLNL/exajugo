@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.18)
 project(jl_NlpPriDec C CXX Fortran)
 
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 find_package(MPI REQUIRED COMPONENTS C CXX Fortran)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
