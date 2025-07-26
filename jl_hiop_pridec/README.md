@@ -1,6 +1,11 @@
 
 ## Contents
 
+Directories:
+ - src: C++ source files
+ - julia_src: julia source files
+ - test_tsi: test tsi constraints
+
 C++ pridec interface:
 
  - jl_NlpPriDecDriver.cpp: entry point for the program;
@@ -47,6 +52,8 @@ Script templates:
 ## Compilation
 
   run: ./compile.sh
+
+  creates "build" directory: stores object and executable files
 
 
 ## Execution
