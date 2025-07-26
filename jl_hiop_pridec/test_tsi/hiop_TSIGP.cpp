@@ -31,13 +31,22 @@ int main() {
     jl_value_t* jl_model_file = jl_cstr_to_string(model_file.c_str());
     jl_value_t* jl_data_record = jl_cstr_to_string(data_record.c_str());
 
-    jl_value_t *tsi_model = jl_call2(load_tsmodel, jl_model_file, jl_data_record);
+    std::cout<<" model_file: "<<model_file<<"\n";
+    std::cout<<" data_record: "<<data_record<<"\n";
+//    jl_atexit_hook(0);
 
+ //   return 0;
+ 
+    jl_value_t *tsi_model = jl_call2(load_tsmodel, jl_model_file, jl_data_record);
+ 
     std::string pf_limit_file = (path_to_data+"/pf_new.mat");
     std::string case_path = (path_to_data+"/ACTIVSg500");
 
     jl_value_t* jl_pf_limit_file = jl_cstr_to_string(pf_limit_file.c_str());
     jl_value_t* jl_case_path = jl_cstr_to_string(case_path.c_str());
+
+    std::cout<<" case_path: "<<case_path<<"\n";
+    std::cout<<" pf_limit_file: "<<pf_limit_file<<"\n";
 
 // TSI test
     jl_value_t *tsi = jl_call3(test_TSI, tsi_model, jl_case_path, jl_pf_limit_file);

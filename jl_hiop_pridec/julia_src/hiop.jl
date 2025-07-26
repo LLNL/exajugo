@@ -71,7 +71,7 @@ include(string(ENV["PATH_TO_EXAJUGO"], "/modules/corejugo/solution_evaluator.jl"
 println(" loaded package: ", ENV["PATH_TO_EXAJUGO"])
 
 #--- python tslope desabled
-#include(string(ENV["PATH_TO_TSSLOPE"], "/init.jl"))
+include(string(ENV["PATH_TO_TSSLOPE"], "/init.jl"))
 
 
 # GM model structure
