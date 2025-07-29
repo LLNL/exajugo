@@ -70,8 +70,16 @@ include(string(ENV["PATH_TO_EXAJUGO"], "/modules/corejugo/solution_evaluator.jl"
 
 println(" loaded package: ", ENV["PATH_TO_EXAJUGO"])
 
-#--- python tslope desabled
-include(string(ENV["PATH_TO_TSSLOPE"], "/init.jl"))
+if haskey(ENV, "PATH_TO_TSSLOPE")
+
+    include(string(ENV["PATH_TO_TSSLOPE"], "/init.jl"))
+    println("PATH_TO_TSSLOPE is set to: ", ENV["PATH_TO_TSSLOPE"])
+
+else
+
+    println("PATH_TO_TSSLOPE is not set.")
+
+end
 
 
 # GM model structure
