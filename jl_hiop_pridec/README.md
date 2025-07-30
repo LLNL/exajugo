@@ -32,11 +32,18 @@ Scripts:
 
 Script templates:
 
- - template.sbatch: this script is used by generate_sbatch.jl. 
+  The directory "sbatch_templates" contains the templates to run the code on different machines: 
+ 
+      - ruby.sbatch: contains configuration to run on ruby; 
+      - dane.sbatch: contains configuration to run on dane; 
+      - hiop.sh: this will be added to any template if it contains the string $HIOP_SH 
+          (i.e., the contains of the file hiop.sh will be inserted in the place of the string - except for the first line)
+
+  IMPORTANT: if you wish to override the templates above, write you template on the file default.sbatch and put it in the directory "sbatch_templates" 
+
 
 
 ## Environment configuration
-
 
 1) Set the following environment variables:
  
@@ -70,9 +77,17 @@ Script templates:
       - time execution time 
       - contingency: contingency file name without the extension, if contingency file name is NOT 'case.con'
 
-   3) Run the command displaied in last line of the output:
+      The generated script will be written to "output/scripts/"
 
-      sbatch sub_<case>.sbatch
+   3) After the execution, the generated script will be shown in the screen. If you wish to submit it, press ENTER. Otherwise, press any key. In case you pressed any key OTHER THAN ENTER, you will see this:
+
+    --- Generated batch file: output/scripts/sub_<case>.sbatch ---
+
+    --- RUN: sbatch output/scripts/sub_<case>.sbatch ---
+
+   4) If you wish to submit Run the command displaied in last line of the output:
+
+      sbatch output/scripts/sub_<case>.sbatch
 
 ## Outputs
 

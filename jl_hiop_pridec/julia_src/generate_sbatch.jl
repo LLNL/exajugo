@@ -111,7 +111,7 @@ if yes_pressed()
 else
 
    println("\n --- Generated batch file: $output_file ---\n")
-   println(" --- RUN: sbatch $output_file ---\n\n")
+   println(" --- To submit the job, run: sbatch $output_file ---\n\n")
 
 end
 
