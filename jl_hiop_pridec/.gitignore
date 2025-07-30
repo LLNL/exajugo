@@ -7,3 +7,5 @@ ipopt.opt
 *.err
 *.out
 *.core
+sbatch_templates/default.sbatch
+test_tsi/solution/

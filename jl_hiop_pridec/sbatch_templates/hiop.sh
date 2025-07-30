@@ -1,7 +1,4 @@
 #!/bin/bash
-#SBATCH --job-name=$CASE
-#SBATCH --time=$TIME:00:00
-#SBATCH --ntasks=$NTASKS
 
 export CONTINGENCY_FILE=$CONT_FILE
 export MAX_ITER=$MAX_ITER
