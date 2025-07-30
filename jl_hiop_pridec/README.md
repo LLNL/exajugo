@@ -89,6 +89,13 @@ Script templates:
 
       sbatch output/scripts/sub_<case>.sbatch
 
+## Checking the current run
+
+   run: ./check.sh
+
+    - this will show you the number of iterations (problems solved) completed by each rank.
+
+
 ## Outputs
 
    All output is written to a subdirectory of the directory "output".
