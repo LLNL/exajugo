@@ -185,7 +185,7 @@ function getGradientDim(ptr)
 end
 
 # Default value
-normalize_x = false
+normalize_x = true
 
 # Check if environment variable exists and update if so
 if haskey(ENV, "NORMALIZE_X")

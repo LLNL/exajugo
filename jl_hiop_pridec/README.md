@@ -51,9 +51,9 @@ Script templates:
     - PATH_TO_HSLLIB: path to HSLLIB;
     - HIOP_INSTALL_DIR: path to HIOP installation;
 
-    if you wish to normalize the contingency gradients, set NORMALIZE_X:
+    The environment variable NORMALIZE_X is used to normalize contingency gradients (default is true):
 
-    export NORMALIZE_X=true
+    export NORMALIZE_X=false  # do not normalize gradients
 
     if you are using TSI constraints, you have to install tsslope. Clone the following repo:
 
