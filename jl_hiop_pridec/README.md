@@ -48,7 +48,6 @@ Script templates:
  
     - PATH_TO_EXAJUGO: path to EXAJUGO;
     - PATH_TO_INSTANCES: path to SACOPF instances;
-    - PATH_TO_HSLLIB: path to HSLLIB;
     - HIOP_INSTALL_DIR: path to HIOP installation;
 
     The environment variable NORMALIZE_X is used to normalize contingency gradients (default is true):

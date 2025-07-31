@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export PATH_TO_HSLLIB="/usr/WS2/hiop/software/spack/opt/spack/linux-rhel8-icelake/gcc-10.3.1/coinhsl-2015.06.23-nszs3vct4qvtgythawqu2kdue5zx5pjj/lib/"
+
 export JULIA_PROJECT=$PATH_TO_EXAJUGO 
 
 export HIOP_INCLUDE_DIR="$HIOP_INSTALL_DIR/include"
