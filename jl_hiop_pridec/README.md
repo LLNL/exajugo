@@ -42,7 +42,6 @@ Script templates:
   IMPORTANT: if you wish to override the templates above, write you template on the file default.sbatch and put it in the directory "sbatch_templates" 
 
 
-
 ## Environment configuration
 
 1) Set the following environment variables:
@@ -51,6 +50,16 @@ Script templates:
     - PATH_TO_INSTANCES: path to SACOPF instances;
     - PATH_TO_HSLLIB: path to HSLLIB;
     - HIOP_INSTALL_DIR: path to HIOP installation;
+
+    if you wish to normalize the contingency gradients, set NORMALIZE_X:
+
+    export NORMALIZE_X=true
+
+    if you are using TSI constraints, you have to install tsslope. Clone the following repo:
+
+       https://github.com/SLOPE-grid/tsSLOPE.git
+
+    Set the environment variable PATH_TO_TSSLOPE to the directory containing the cloned repo.
 
 2) Execute on bash:
 
@@ -93,8 +102,13 @@ Script templates:
 
    run: ./check.sh
 
-    - this will show you the number of iterations (problems solved) completed by each rank.
+    - this will show you the number of iterations (problems solved) completed by each rank of the most recent case run (or currently running).
 
+    The following columns will be shown:
+
+    rank  # of iterations  date created         last update 
+
+   IMPORTANT: if you the case name as argument, it will filter based on the case name (in addition to the date).
 
 ## Outputs
 

@@ -24,7 +24,12 @@ function check_env_vars()
     end
 end
 
-check_env_vars()
+if !check_env_vars()
+    println(" *** Execution aborted! ***")
+    println("")
+    exit()
+
+end
 
 instance_name = ARGS[1]
 batch_time = ARGS[2]
@@ -103,6 +108,9 @@ function yes_pressed()
     println()
     return c == '\r' || c == '\n'
 end
+
+ENV["BATCH_FILE"]=output_file
+
 
 if yes_pressed()
 

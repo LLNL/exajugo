@@ -184,15 +184,21 @@ function getGradientDim(ptr)
    return length(ptr[].cont_grad)
 end
 
-   #gnorm = norm(ptr_rderivaties[].gradient[])
-   #G = ptr_rderivaties[].gradient[]/gnorm
+# Default value
+normalize_x = false
 
+# Check if environment variable exists and update if so
+if haskey(ENV, "NORMALIZE_X")
+    # Convert string to Bool: accept "true", "1", "yes" (case-insensitive) as true
+    val = lowercase(ENV["NORMALIZE_X"])
+    normalize_x = val in ["true", "1", "yes"]
+end
 
 function getGradient(ptr, x)
    for (i,v) in enumerate(ptr[].cont_grad)
        x[i] = v
    end
-   x .= normalize(x)
+   normalize_x ? (x .= normalize(x)) : nothing
 end
 
 

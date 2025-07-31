@@ -7,6 +7,24 @@ export JULIA_SRC_FILE=./julia_src/hiop.jl
 mkdir -p output
 export OUTPUT_DIR=output/$CASE_$(date +%Y%m%d_%H%M%S)
 
+mkdir -p "${OUTPUT_DIR}"
+
+{
+  echo "CONTINGENCY_FILE=${CONTINGENCY_FILE}"
+  echo "MAX_ITER=${MAX_ITER}"
+  echo "JULIA_SRC_FILE=${JULIA_SRC_FILE}"
+  echo "PATH_TO_EXAJUGO=${PATH_TO_EXAJUGO}"
+  echo "PATH_TO_INSTANCES=${PATH_TO_INSTANCES}"
+  echo "PATH_TO_HSLLIB=${PATH_TO_HSLLIB}"
+  echo "HIOP_INSTALL_DIR=${HIOP_INSTALL_DIR}"
+  echo "PATH_TO_TSSLOPE=${PATH_TO_TSSLOPE}"
+  echo "SLURM_JOB_ID=${SLURM_JOB_ID}"
+} > "${OUTPUT_DIR}/environment_vars.txt"
+
+# Copy submitted batch file to output directory
+
+cp "${BATCH_FILE}" "${OUTPUT_DIR}"
+
 # Run the executable using srun
 
 srun --output=$OUTPUT_DIR/rank_%t/log_$CASE_%j_%t.out \
