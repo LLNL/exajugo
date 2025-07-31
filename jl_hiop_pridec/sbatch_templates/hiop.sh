@@ -18,6 +18,7 @@ mkdir -p "${OUTPUT_DIR}"
   echo "PATH_TO_HSLLIB=${PATH_TO_HSLLIB}"
   echo "HIOP_INSTALL_DIR=${HIOP_INSTALL_DIR}"
   echo "PATH_TO_TSSLOPE=${PATH_TO_TSSLOPE}"
+  echo "NORMALIZE_X=${NORMALIZE_X}"
   echo "SLURM_JOB_ID=${SLURM_JOB_ID}"
 } > "${OUTPUT_DIR}/environment_vars.txt"
 
