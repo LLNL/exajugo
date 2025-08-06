@@ -145,15 +145,6 @@ end
 
 # function to solve base case, possibly with recourse approximations
 
-#function solve_basecase(psd::SCACOPFdata, NLSolver;
-#                       recourse_f::T=nothing,   # recourse function value
-#                       recourse_g::T=nothing,   # recourse function gradient
-#                       recourse_H::T=nothing,   # recourse function hessian
-#                       previous_solution::Union{Nothing,
-#                                                BasecaseSolution}=nothing,
-#                       output_dir::Union{Nothing, String} = nothing
-#                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
-
 function solve_basecase(psd::SCACOPFdata, NLSolver;
                        recourse_f::Union{Nothing, Function}=nothing,   # recourse function value
                        recourse_g::Union{Nothing, Function}=nothing,   # recourse function gradient
@@ -163,10 +154,8 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                        output_dir::Union{Nothing, String} = nothing
                       )::Tuple{BasecaseSolution, Model}
 
-    println(" --- get_primal_starting_point ---")    
     # get primal starting point
     x0 = get_primal_starting_point(psd, previous_solution)
-    println(" --- primel point ---")
 
     # create model
     m = Model(NLSolver)
@@ -608,11 +597,6 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
 
-
-    println("Production Cost: " *string(JuMP.value.(production_cost))*"")
-    println("Basecase Penalty: " *string(JuMP.value.(basecase_penalty))*"")
-    println("Contingency Penalty: " *string(JuMP.value.(contingency_penalty))*"")
-
     # Intial construction of the SCACOPF solution
     solution = SCACOPFsolution(psd, BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                                     convert(Vector{Float64}, JuMP.value.(b_s)),
@@ -632,7 +616,6 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                         0.0, contin_penalty)
         contingency.cont_id = k
         add_contingency_solution!(solution, contingency)
-        println("Contingency "*string(k)*" Penalty: " *string(contin_penalty)*"")   
     end
 
     # write the information about the system

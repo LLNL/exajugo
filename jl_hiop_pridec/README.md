@@ -50,9 +50,9 @@ Script templates:
     - PATH_TO_INSTANCES: path to SACOPF instances;
     - HIOP_INSTALL_DIR: path to HIOP installation;
 
-    The environment variable NORMALIZE_X is used to normalize contingency gradients (default is true):
+    The environment variable NORMALIZE_X is used to normalize contingency gradients (default is false):
 
-    export NORMALIZE_X=false  # do not normalize gradients
+    export NORMALIZE_X=true  # do not normalize gradients
 
     if you are using TSI constraints, you have to install tsslope. Clone the following repo:
 

@@ -185,7 +185,7 @@ function getGradientDim(ptr)
 end
 
 # Default value
-normalize_x = true
+normalize_x = false
 
 # Check if environment variable exists and update if so
 if haskey(ENV, "NORMALIZE_X")
@@ -441,9 +441,7 @@ function save_solution(file_path, ptr, prev_sol)
 
   try
 
-    println(" *** save_solution called! ***")
     save_opt_data(file_path, ("objective"=>prev_sol[].base_cost), [round(x, digits=5) for x in prev_sol[].p_g])
-    println(" *** save_opt_data called! ***")
 
 # Given file_path
     dir = dirname(file_path)
@@ -538,12 +536,6 @@ function save_opt_iterations(file_path, kval::Pair{String, Float64})
         CSV.write(file_path, updated_data)
     else
         # If the file does not exist, create it with iteration set to 0 and the given objective
-#        columns = Dict(
-#        :iteration => 0,
-#        Symbol(fd_name) => value, 
-#        :execution_time => exec_time, 
-#        :time_stamp => now())
-#        new_data = DataFrame(columns)
 
 # Create a single row as a NamedTuple in a vector
         row = (; iteration=0, Symbol(fd_name)=>value, execution_time=exec_time, time_stamp=now())
@@ -562,8 +554,6 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
    G = ptr_rderivaties[].gradient
    H = ptr_rderivaties[].hessian
 
-   println("\n --- Base case with recourse called! --- \n")
-
    recourse_fx = (args...) ->  begin x = collect(args); (1/2)*(x.^2)'H + (G - H.*x)'x end
    recourse_gx = (argG, args...) ->   begin  x = collect(args);  argG .= G.*x;  end
    recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
@@ -572,8 +562,6 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
               Ref(solve_basecase(ptr[], get_optimimizer(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
-
-   println("\n --- Base case with recourse! --- \n")
 
    # allocated_bytes = Base.gc_bytes() 
    #println("SOLUTION_WITH_RECOURSE Memory allocated: ", allocated_bytes, " bytes")
@@ -587,10 +575,8 @@ function solve_base_case(ptr)
    global start_time
    start_time = time()
 
-   println("\n --- Base case called! --- \n")
    SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer())[1])
   # SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer()))
-   println("\n --- Base case solved! --- \n")
 
    #allocated_bytes = Base.gc_bytes()
    #println("BASE Memory allocated: ", allocated_bytes, " bytes")
@@ -653,6 +639,7 @@ function solve_contingency_pridec(ptr, i::Int64, ptr_basesol)
    ptr_basesol[].psd_hash = hash(ptr[])
 
    CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer()))
+   #debug: println(CONT_SOL[])
    return CONT_SOL
 
 end
