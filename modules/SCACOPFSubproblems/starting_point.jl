@@ -1,10 +1,11 @@
 # function to compute primal starting point
 
 function get_primal_starting_point(psd::SCACOPFdata,
-                                   sol::Union{Nothing, BasecaseSolution}=nothing)
+                                   sol::Union{Nothing, BasecaseSolution}=nothing;
+                                   opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     x0 = Dict{Symbol, Array{Float64}}()
     if isnothing(sol)
-        full_solution = get_full_initial_solution(psd)
+        full_solution = get_full_initial_solution(psd, opt = opt)
         x0[:v_n] = full_solution[1]
         x0[:theta_n] = full_solution[2]
         x0[:b_s] = full_solution[3]
@@ -22,7 +23,7 @@ function get_primal_starting_point(psd::SCACOPFdata,
         x0[:sslack_ti] = full_solution[15]
         x0[:c_g] = full_solution[16]
     else
-        full_solution = get_full_solution(psd, sol)
+        full_solution = get_full_solution(psd, sol, opt = opt)
         x0[:v_n] =  sol.v_n
         x0[:theta_n] = sol.theta_n
         x0[:b_s] = sol.b_s
@@ -46,10 +47,11 @@ end
 function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency,
                                    base_sol::BasecaseSolution,
                                    prev_sol::Union{Nothing,
-                                                   ContingencySolution})
+                                                   ContingencySolution};
+                                    opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     x0 = Dict{Symbol, Array{Float64}}()
     if isnothing(prev_sol) || !isequal_struct(prev_sol.cont_alt, con)
-        full_solution = get_full_initial_solution(psd, con, base_sol)
+        full_solution = get_full_initial_solution(psd, con, base_sol, opt = opt)
         x0[:v_nk] = full_solution[1]
         x0[:theta_nk] = full_solution[2]
         x0[:b_sk] = full_solution[3]
@@ -67,7 +69,7 @@ function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency,
         x0[:sslack_tik] = full_solution[15]
     else
         @assert isequal_struct(prev_sol.cont_alt, con)
-        full_solution = get_full_solution(psd, prev_sol)
+        full_solution = get_full_solution(psd, prev_sol, opt = opt)
         x0[:v_nk] =  prev_sol.v_n
         x0[:theta_nk] = prev_sol.theta_n
         x0[:b_sk] = prev_sol.b_s
@@ -87,9 +89,10 @@ function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency,
     return x0
 end
 
-function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency)
+function get_primal_starting_point(psd::SCACOPFdata, con::GenericContingency;
+                                    opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     x0 = Dict{Symbol, Array{Float64}}()
-    full_solution = get_full_initial_solution(psd, con)
+    full_solution = get_full_initial_solution(psd, con, opt = opt)
     x0[:v_nk] = full_solution[1]
     x0[:theta_nk] = full_solution[2]
     x0[:b_sk] = full_solution[3]
