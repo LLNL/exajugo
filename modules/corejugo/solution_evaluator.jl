@@ -1,36 +1,40 @@
 # function (method) to compute full base case solution
 
-function get_full_solution(psd::SCACOPFdata, sol::BasecaseSolution)
+function get_full_solution(psd::SCACOPFdata, sol::BasecaseSolution;
+                            opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     if hash(psd) != sol.psd_hash
         error("base case solution does not correspond to power system data.")
     end
-    flows_and_slacks = get_power_flows_and_slacks(psd, sol)
+    flows_and_slacks = get_power_flows_and_slacks(psd, sol, opt = opt)
     c_g = get_production_cost(psd, sol)
     return flows_and_slacks..., c_g
 end
 
 # function (method) to compute full contingency solution
 
-function get_full_solution(psd::SCACOPFdata, sol::ContingencySolution)
+function get_full_solution(psd::SCACOPFdata, sol::ContingencySolution;
+                            opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     if hash(psd) != sol.psd_hash
         error("contingency solution does not correspond to power system data.")
     end
-    return get_power_flows_and_slacks(psd, sol)
+    return get_power_flows_and_slacks(psd, sol, opt = opt)
 end
 
 # function to compute full initial solution for base case
 
-function get_full_initial_solution(psd::SCACOPFdata)
+function get_full_initial_solution(psd::SCACOPFdata;
+                            opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     sol = BasecaseSolution(psd, psd.N[!,:v0], psd.N[!,:theta0],
                            psd.SSh[!,:b0], psd.G[!,:p0], psd.G[!,:q0],
                            0.0, 0.0)
     return sol.v_n, sol.theta_n, sol.b_s, sol.p_g, sol.q_g,
-            get_full_solution(psd, sol)...
+            get_full_solution(psd, sol, opt = opt)...
 end
 
 # function to compute full initial solution for contingency
 
-function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency)
+function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency;
+                            opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     p0_g = copy(psd.G[!,:p0])
     q0_g = copy(psd.G[!,:q0])
     if length(con.generators_out) > 0
@@ -42,13 +46,14 @@ function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency)
     sol = ContingencySolution(psd, con, psd.N[!,:v0], psd.N[!,:theta0],
                               psd.SSh[!,:b0], p0_g, q0_g, 0.0, 0.0)
     return sol.v_n, sol.theta_n, sol.b_s, sol.p_g, sol.q_g,
-           get_full_solution(psd, sol)...
+           get_full_solution(psd, sol, opt = opt)...
 end
 
 # function to compute full initial solution for contingency using a base case solution
 
 function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency,
-                                   sol::BasecaseSolution)
+                                   sol::BasecaseSolution;
+                                   opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     if hash(psd) != sol.psd_hash
         error("base case solution does not correspond to power system data.")
     end
@@ -63,7 +68,7 @@ function get_full_initial_solution(psd::SCACOPFdata, con::GenericContingency,
     sol = ContingencySolution(psd, con, sol.v_n, sol.theta_n, sol.b_s,
                               p_g, q_g, 0.0, 0.0)
     return sol.v_n, sol.theta_n, sol.b_s, p_g, q_g,
-           get_full_solution(psd, sol)...
+           get_full_solution(psd, sol, opt = opt)...
 end
 
 ## auxiliary functions
@@ -79,7 +84,8 @@ end
 
 function assign_short_circuit_flows(psd::SCACOPFdata,
                                     v_n::Vector{Float64}, pslack_n::Vector{Float64}, qslack_n::Vector{Float64},
-                                    L_short_circuit::Vector{Int}, T_short_circuit::Vector{Int}, RateSymb::Symbol)
+                                    L_short_circuit::Vector{Int}, T_short_circuit::Vector{Int}, RateSymb::Symbol;
+                                    opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     
     # build short circuit (sc) network indices
     Nidx_sc = sort(unique([vec(psd.L_Nidx[L_short_circuit, :]);
@@ -116,7 +122,9 @@ function assign_short_circuit_flows(psd::SCACOPFdata,
     end
     
     # create mathematical programming model to minimize total slacks
-	opt = optimizer_with_attributes(Ipopt.Optimizer, "sb" => "yes")
+    if opt == nothing
+	    opt = optimizer_with_attributes(Ipopt.Optimizer, "sb" => "yes")
+    end
     m = Model(opt)
     
     # declare variables: slacks and short circuit flows
@@ -185,7 +193,8 @@ end
 
 # computing power flows and slacks
 
-function get_power_flows_and_slacks(psd::SCACOPFdata, sol::SubproblemSolution)
+function get_power_flows_and_slacks(psd::SCACOPFdata, sol::SubproblemSolution;
+                                    opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     
     # determine thermal rate type
     if typeof(sol) <: BasecaseSolution
@@ -330,7 +339,7 @@ function get_power_flows_and_slacks(psd::SCACOPFdata, sol::SubproblemSolution)
         # compute flows that would minimize slacks
         p_l_sc, q_l_sc, p_t_sc, q_t_sc = 
             assign_short_circuit_flows(psd, sol.v_n, pslackp_n - pslackm_n, qslackp_n - qslackm_n,
-                                       L_short_circuit, T_short_circuit, RateSymb)
+                                       L_short_circuit, T_short_circuit, RateSymb, opt = opt)
         
         # set flows for short circuit branches
         for k = 1:length(L_short_circuit)

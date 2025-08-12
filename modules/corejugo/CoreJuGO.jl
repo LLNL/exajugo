@@ -4,6 +4,8 @@ module CoreJuGO
 
 using Printf, Random, DataFrames, CSV, Graphs, JuMP, Ipopt
 
+const MOI = JuMP.MOI
+
 export SCACOPFdata, enforce_bounds!, GenericContingency, isequal_struct,
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
        add_contingency_solution!,
