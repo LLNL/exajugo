@@ -34,6 +34,12 @@ mask = "*iterations.csv"
 # Check for name filter in command-line arguments
 name_filter = length(ARGS) > 0 ? ARGS[1] : ""
 
+# Check if parent folder exists
+if !isdir(parent_folder)
+    println("      Parent folder '$parent_folder' does not exist.")
+    exit()
+end
+
 # List all subdirectories in output, excluding 'scripts'
 dirs = filter(f -> isdir(f) && basename(f) != exclude_dir, joinpath.(parent_folder, readdir(parent_folder)))
 
@@ -105,8 +111,10 @@ else
             if isempty(files)
                 count = 0
                 last_update = ""
+                objective = ""
             else
-                file = files[1]
+                # Use most recently modified file
+                file = files[argmax(stat.(files) .|> x -> x.mtime)]
                 count = max(countlines(file) - 1, 0)
 
                 # Get file modification time in local time
@@ -114,13 +122,36 @@ else
                 dt_update_utc = unix2datetime(file_stat.mtime)
                 dt_update_local = astimezone(ZonedDateTime(dt_update_utc, tz"UTC"), local_tz)
                 last_update = Dates.format(dt_update_local, "yyyy-mm-dd HH:MM:SS")
+
+                # Read objective value if more than one row
+                if count > 0
+                    open(file, "r") do io
+                        readline(io) # skip header
+                        last_line = ""
+                        for line in eachline(io)
+                            last_line = line
+                        end
+                        if !isempty(last_line)
+                            fields = split(last_line, ',')
+                            if length(fields) >= 2
+                                objective = strip(fields[2])
+                            else
+                                objective = ""
+                            end
+                        else
+                            objective = ""
+                        end
+                    end
+                else
+                    objective = ""
+                end
             end
-            push!(rows, (string(rank_num), string(count), date_created, last_update))
+            push!(rows, (string(rank_num), string(count), date_created, last_update, objective))
         end
 
         # Calculate column widths
-        headers = ["rank", "# of iterations", "date created", "last update"]
-        cols = [getindex.(rows, i) for i in 1:4]
+        headers = ["rank", "# of iterations", "date created", "last update", "last objective"]
+        cols = [getindex.(rows, i) for i in 1:5]
         col_widths = [maximum(length.(col)) for col in cols]
         for (i, h) in enumerate(headers)
             col_widths[i] = max(col_widths[i], length(h))
@@ -130,6 +161,12 @@ else
         print("      ")
         for (h, w) in zip(headers, col_widths)
             print(rpad(h, w), "  ")
+        end
+        println()
+        # Print separator
+        print("      ")
+        for w in col_widths
+            print("-"^w, "  ")
         end
         println()
 

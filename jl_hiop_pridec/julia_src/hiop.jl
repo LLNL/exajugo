@@ -22,6 +22,48 @@ function get_optimimizer()
 end
 
 
+function get_optimimizer_base_case()
+
+    return optimizer_with_attributes(Ipopt.Optimizer,
+                            "sb" => "yes",
+                            "tol" =>  1e-6,
+                            "mu_superlinear_decrease_power" =>  1.25,
+                            "mu_linear_decrease_factor" =>  0.4,
+                            "max_iter" =>  500,
+                            "print_user_options"  =>  "yes"
+                            )
+
+end
+
+function get_optimimizer_base_case_recourse()
+
+    return get_optimimizer_base_case()
+
+end
+
+
+function get_optimimizer_contingency()
+
+    return optimizer_with_attributes(Ipopt.Optimizer,
+                            "sb" => "yes",
+                            "tol" =>  1e-6,
+                            "mu_superlinear_decrease_power" =>  1.25,
+                            "mu_linear_decrease_factor" =>  0.4,
+                            "bound_relax_factor" =>  1e-6,
+                            "max_iter" =>  500,
+                            "fixed_variable_treatment" =>  "relax_bounds",
+                            "jacobian_regularization_value" => 1e-10,
+                            "inf_pr_output" =>  "internal",
+                            "acceptable_dual_inf_tol" =>  0.01,
+                            "acceptable_constr_viol_tol" => 1e-6,
+                            "acceptable_compl_inf_tol" => 0.01,
+                            "acceptable_iter" => 1,
+                            "print_user_options"  =>  "yes"
+                            )
+
+end
+
+
 function pointer_manager()
 
     # IdDict to hold references
@@ -559,7 +601,7 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
    recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
 
    SOLUTION_WITH_RECOURSE=
-              Ref(solve_basecase(ptr[], get_optimimizer(), 
+              Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
 
@@ -575,7 +617,7 @@ function solve_base_case(ptr)
    global start_time
    start_time = time()
 
-   SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer())[1])
+   SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer_base_case())[1])
   # SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer()))
 
    #allocated_bytes = Base.gc_bytes()
@@ -638,7 +680,7 @@ function solve_contingency_pridec(ptr, i::Int64, ptr_basesol)
 
    ptr_basesol[].psd_hash = hash(ptr[])
 
-   CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer()))
+   CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer_contingency()))
    #debug: println(CONT_SOL[])
    return CONT_SOL
 
