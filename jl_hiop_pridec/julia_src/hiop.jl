@@ -596,9 +596,16 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
    G = ptr_rderivaties[].gradient
    H = ptr_rderivaties[].hessian
 
-   recourse_fx = (args...) ->  begin x = collect(args); (1/2)*(x.^2)'H + (G - H.*x)'x end
-   recourse_gx = (argG, args...) ->   begin  x = collect(args);  argG .= G.*x;  end
-   recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
+#   recourse_fx = (args...) ->  begin x = collect(args); (1/2)*(x.^2)'H + (G - H.*x)'x end
+#   recourse_gx = (argG, args...) ->   begin  x = collect(args);  argG .= G.*x;  end
+#   recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
+
+   n = length(G)
+
+# Create n scalar functions for each calculation
+   recourse_fx = [ (x) -> begin (1/2)*x^2*H[i] + (G[i] - H[i]*x)*x end for i in 1:n ]
+   recourse_gx = [ (argG, x) -> begin argG[1] = G[i]*x end for i in 1:n ]
+   recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
 
    SOLUTION_WITH_RECOURSE=
               Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 

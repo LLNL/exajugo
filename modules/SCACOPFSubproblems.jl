@@ -149,9 +149,9 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
 #                       recourse_f::T=nothing,   # recourse function value
 #                       recourse_g::T=nothing,   # recourse function gradient
 #                       recourse_H::T=nothing,   # recourse function hessian
-                       recourse_f::Union{Nothing, Function}=nothing,   # recourse function value
-                       recourse_g::Union{Nothing, Function}=nothing,   # recourse function gradient
-                       recourse_H::Union{Nothing, Function}=nothing,   # recourse function hessian
+                       recourse_f::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function value
+                       recourse_g::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function gradient
+                       recourse_H::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function hessian
                        previous_solution::Union{Nothing,
                                                 BasecaseSolution}=nothing,
                        output_dir::Union{Nothing, String} = nothing,
@@ -249,10 +249,38 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     # contingency penalty
     if isnothing(recourse_f)
         contingency_penalty = 0.0
+       #  write_to_file(m, "no_cont_base_case_model.nl")
+
     else
-        JuMP.register(m, :recourse_f, nrow(psd.G),
-                      recourse_f, recourse_g, recourse_H)
-        contingency_penalty = @NLexpression(m, recourse_f(p_g...))
+      #  JuMP.register(m, :recourse_f, nrow(psd.G),
+      #                recourse_f, recourse_g, recourse_H)
+      #  contingency_penalty = @NLexpression(m, recourse_f(p_g...))
+ #        write_to_file(m, "cont_base_case_model.nl")
+
+        # Register each function
+
+        n = nrow(psd.G)
+        p_g_vars = Dict{Int, JuMP.VariableRef}()
+
+        for i in eachindex(p_g)
+             p_g_vars[i] = p_g[i]# @variable(m, base_name="p_g_$i")
+        end
+
+        for i in eachindex(p_g)
+            funcname = Symbol("recourse_f_", i)
+            f = recourse_f[i]
+            @eval function $(funcname)(x)
+		         $f(x)
+            end
+            JuMP.register(m, funcname, 1, recourse_f[i], recourse_g[i], recourse_H[i])
+        end
+ 
+        sum_expr = 0.0 
+        for i in eachindex(p_g)
+            sum_expr += recourse_f[i](p_g_vars[i])  # or whatever quadratic term you want
+        end
+        contingency_penalty = @NLexpression(m, sum_expr)
+
     end 
 
     # declare objective
@@ -261,6 +289,9 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
 
     @NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
                (1-psd.delta)*contingency_penalty)
+
+#    write_to_file(m, "base_case_model.nl")
+ #   write_to_file(m, "base_case_model.lp")
 
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
