@@ -25,6 +25,11 @@ mkdir -p "${OUTPUT_DIR}"
 # Copy submitted batch file to output directory
 
 cp "${BATCH_FILE}" "${OUTPUT_DIR}"
+options_file=hiop_pridec.options
+
+if [ -f "${options_file}" ]; then
+    cp "${options_file}" "${OUTPUT_DIR}"
+fi
 
 # Run the executable using srun
 
