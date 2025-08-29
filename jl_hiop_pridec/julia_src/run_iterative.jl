@@ -128,7 +128,7 @@ if yes_pressed()
 else
 
    println("\n --- Generated batch file: $output_file ---\n")
-   println(" --- To run on iterative node: ./$output_file ---\n\n")
+   println(" --- To run on iterative node allocation: ./$output_file ---\n\n")
 
 end
 

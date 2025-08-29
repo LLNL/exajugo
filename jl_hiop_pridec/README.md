@@ -97,7 +97,7 @@ Script templates:
 
       sbatch output/scripts/sub_<case>.sbatch
 
-## Execution (iterative pdebug node)
+## Execution (iterative pdebug node allocation)
 
    Before executing, the code must be compiled (see **Compilation**)
 
