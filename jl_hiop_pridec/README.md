@@ -71,7 +71,7 @@ Script templates:
   creates "build" directory: stores object and executable files
 
 
-## Execution
+## Execution (job submission)
 
    Before executing, the code must be compiled (see **Compilation**)
 
@@ -93,9 +93,40 @@ Script templates:
 
     --- RUN: sbatch output/scripts/sub_<case>.sbatch ---
 
-   4) If you wish to submit Run the command displaied in last line of the output:
+   4) If you wish to run the command displaied in last line of the output:
 
       sbatch output/scripts/sub_<case>.sbatch
+
+## Execution (iterative pdebug node)
+
+   Before executing, the code must be compiled (see **Compilation**)
+
+   1) Configure the environment (see **Environment configuration**)
+
+   2) Generate the batch:
+
+      ./run_iterative.sh  [contingency]
+
+      - instance: bus system
+      - contingency: contingency file name without the extension, if contingency file name is NOT 'case.con'
+
+      The generated script will be written to "output/scripts/"
+
+   3) After the execution, the generated script will be shown in the screen. If you wish to run it, press ENTER. Otherwise, press any key. In case you pressed any key OTHER THAN ENTER, you will see this:
+
+    --- Running command: ./output/scripts/run_<case>.sh  ---
+    Output directory: output/$OUTPUT_DIR
+
+   4) If you wish to run the command displaied in last line of the output:
+
+      ./output/scripts/run_<case>.sh
+
+   IMPORTANT: before running the code iteratively, you must allocate a node with the necessary number of processors using the following command:
+
+         salloc -N1 -nNTASKS -ppdebug
+
+   where NTASKS = number of contingencies + 1
+
 
 ## Checking the current run
 

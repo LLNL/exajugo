@@ -228,6 +228,7 @@ end
 
 # Default value
 normalize_x = false
+grad_multiplier = 1.0
 
 # Check if environment variable exists and update if so
 if haskey(ENV, "NORMALIZE_X")
@@ -236,9 +237,17 @@ if haskey(ENV, "NORMALIZE_X")
     normalize_x = val in ["true", "1", "yes"]
 end
 
+if haskey(ENV, "GRAD_MULTIPLIER")
+    val = lowercase(ENV["GRAD_MULTIPLIER"])
+    parsed_val = tryparse(Float64, val)
+    if parsed_val !== nothing
+        grad_multiplier = parsed_val
+    end
+end
+
 function getGradient(ptr, x)
    for (i,v) in enumerate(ptr[].cont_grad)
-       x[i] = v
+       x[i] = v * grad_multiplier
    end
    normalize_x ? (x .= normalize(x)) : nothing
 end
@@ -447,10 +456,7 @@ function get_recourse_derivatives(grad, hess, _len)
     return Ref(RecourseDerivatives(grad, hess, _len))
 end
 
-
 using LinearAlgebra
-
-
 
 function save_array(file_path, ptr, grad)
    
