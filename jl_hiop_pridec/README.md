@@ -105,7 +105,7 @@ Script templates:
 
    2) Generate the batch:
 
-      ./run_iterative.sh  [contingency]
+      ./run_iterative.sh instance [contingency]
 
       - instance: bus system
       - contingency: contingency file name without the extension, if contingency file name is NOT 'case.con'
