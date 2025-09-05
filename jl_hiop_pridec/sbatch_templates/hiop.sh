@@ -20,6 +20,8 @@ mkdir -p "${OUTPUT_DIR}"
   echo "PATH_TO_TSSLOPE=${PATH_TO_TSSLOPE}"
   echo "NORMALIZE_X=${NORMALIZE_X}"
   echo "GRAD_MULTIPLIER=${GRAD_MULTIPLIER}"
+  echo "BASE_CASE_OPTIONS=${BASE_CASE_OPTIONS}"
+  echo "CONTINGENCY_CASE_OPTIONS=${CONTINGENCY_CASE_OPTIONS}"
   echo "SLURM_JOB_ID=${SLURM_JOB_ID}"
 } > "${OUTPUT_DIR}/environment_vars.txt"
 
@@ -30,6 +32,20 @@ options_file=hiop_pridec.options
 
 if [ -f "${options_file}" ]; then
     cp "${options_file}" "${OUTPUT_DIR}"
+fi
+
+if [ -n "${BASE_CASE_OPTIONS:-}" ]; then
+    options_file="$BASE_CASE_OPTIONS"
+    if [ -f "$options_file" ]; then
+        cp "$options_file" "$OUTPUT_DIR"
+    fi
+fi
+
+if [ -n "${CONTINGENCY_CASE_OPTIONS:-}" ]; then
+    options_file="$CONTINGENCY_CASE_OPTIONS"
+    if [ -f "$options_file" ]; then
+        cp "$options_file" "$OUTPUT_DIR"
+    fi
 fi
 
 # Run the executable using srun

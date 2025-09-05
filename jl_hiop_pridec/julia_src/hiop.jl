@@ -21,17 +21,65 @@ function get_optimimizer()
 
 end
 
+# Helper function to read and parse environment variables
+function get_env(varname::String, default)
+    val = get(ENV, varname, nothing)
+    if isnothing(val)
+        return default
+    end
+    # Try to convert to the type of the default value
+    try
+        return convert(typeof(default), parse(typeof(default), val))
+    catch
+        return val  # For string values, just return as is
+    end
+end
+
+base_case_options = Dict(
+    "sb" => "yes",
+    "tol" => 1e-6,
+    "mu_superlinear_decrease_power" => 1.25,
+    "mu_linear_decrease_factor" => 0.4,
+    "max_iter" => 500,
+    "print_user_options" => "yes"
+)
+
+function read_ipopt_options(filename)
+    options = Dict{String, Any}()
+    for line in eachline(filename)
+        if isempty(strip(line)) || startswith(strip(line), "#")
+            continue  # skip empty lines or comments
+        end
+        k, v = split(strip(line))
+        # Try to parse numbers, otherwise keep as string
+        try
+            v_parsed = parse(Int, v)
+            options[k] = v_parsed
+        catch
+            try
+                v_parsed = parse(Float64, v)
+                options[k] = v_parsed
+            catch
+                options[k] = v
+            end
+        end
+    end
+    return options
+end
+
+if haskey(ENV, "BASE_CASE_OPTIONS")
+   filename = ENV["BASE_CASE_OPTIONS"]
+   if isfile(filename)
+      println(" --- File $filename with base case options loaded! ---")
+      merge!(base_case_options, read_ipopt_options(filename))  # Update existing dict      
+   else
+      println(" --- File $filename with base case options not found!! ---")
+   end
+end
 
 function get_optimimizer_base_case()
 
-    return optimizer_with_attributes(Ipopt.Optimizer,
-                            "sb" => "yes",
-                            "tol" =>  1e-6,
-                            "mu_superlinear_decrease_power" =>  1.25,
-                            "mu_linear_decrease_factor" =>  0.4,
-                            "max_iter" =>  500,
-                            "print_user_options"  =>  "yes"
-                            )
+    return optimizer_with_attributes(Ipopt.Optimizer, base_case_options...)
 
 end
 
@@ -42,9 +90,7 @@ function get_optimimizer_base_case_recourse()
 end
 
 
-function get_optimimizer_contingency()
-
-    return optimizer_with_attributes(Ipopt.Optimizer,
+cont_case_options = Dict(
                             "sb" => "yes",
                             "tol" =>  1e-6,
                             "mu_superlinear_decrease_power" =>  1.25,
@@ -59,7 +105,21 @@ function get_optimimizer_contingency()
                             "acceptable_compl_inf_tol" => 0.01,
                             "acceptable_iter" => 1,
                             "print_user_options"  =>  "yes"
-                            )
+)
+
+if haskey(ENV, "CONTINGENCY_CASE_OPTIONS")
+   filename = ENV["CONTINGENCY_CASE_OPTIONS"]
+   if isfile(filename)
+      println(" --- File $filename with base case options loaded! ---")
+      merge!(cont_case_options, read_ipopt_options(filename))  # Update existing dict      
+   else
+      println(" --- File $filename with base case options not found!! ---")
+   end
+end
+
+function get_optimimizer_contingency()
+
+    return optimizer_with_attributes(Ipopt.Optimizer, cont_case_options...)
 
 end
 
