@@ -9,6 +9,7 @@ for pkg in ["CSV", "Revise"]
     end
 end
 
+using MKL
 using Dates
 
 start_time = time()
@@ -51,6 +52,8 @@ function read_ipopt_options(filename)
             continue  # skip empty lines or comments
         end
         k, v = split(strip(line))
+        k = String(k)
+        v = String(v)
         # Try to parse numbers, otherwise keep as string
         try
             v_parsed = parse(Int, v)
@@ -110,10 +113,10 @@ cont_case_options = Dict(
 if haskey(ENV, "CONTINGENCY_CASE_OPTIONS")
    filename = ENV["CONTINGENCY_CASE_OPTIONS"]
    if isfile(filename)
-      println(" --- File $filename with base case options loaded! ---")
+      println(" --- File $filename with contingency case options loaded! ---")
       merge!(cont_case_options, read_ipopt_options(filename))  # Update existing dict      
    else
-      println(" --- File $filename with base case options not found!! ---")
+      println(" --- File $filename with contingency case options not found!! ---")
    end
 end
 

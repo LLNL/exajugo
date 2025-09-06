@@ -163,3 +163,23 @@ Script templates:
       - contingency_i_iterations.csv: contingency subproblem objective value and execution time for each iteration;
       - log_case_JOBNUMBER_i.out: screen output;
       - log_case_JOBNUMBER_i.err: slurm errors.
+
+## Solver options
+
+    You can change the ipopt solver options for the base case and contingency cases separately by setting the following environment variables:
+
+      - BASE_CASE_OPTIONS: name of the file that contains the ipopt options for the base case problem;
+      - CONTINGENCY_CASE_OPTIONS: name of the file that contains the ipopt options for the contingency problems.
+
+   The files format for both files above are a text file with two columns: option value (without header)
+      Example:
+           sb yes
+           tol 1e-6
+
+
+       
+
+
+
+
+
