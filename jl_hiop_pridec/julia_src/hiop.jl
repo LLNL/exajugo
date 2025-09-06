@@ -1,5 +1,5 @@
 
-for pkg in ["CSV", "Revise"]
+for pkg in ["CSV", "Revise", "MKL"]
     try
         @eval using $(Symbol(pkg))
     catch
