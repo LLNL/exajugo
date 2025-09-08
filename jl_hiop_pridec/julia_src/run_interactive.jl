@@ -2,7 +2,7 @@
 
 # Check for correct number of arguments
 if length(ARGS) < 1
-    println("Usage: julia run_iterative.jl  case")
+    println("Usage: julia run_interactive.jl  case")
     exit(1)
 end
 
@@ -39,12 +39,12 @@ if length(ARGS) == 2
 end
 
 template_dir = "./sbatch_templates"
-template_file = joinpath(template_dir, "iterative.sh")
+template_file = joinpath(template_dir, "interactive.sh")
 
 if !isfile(template_file)
 
     if !isfile(template_file)
-        println(" *** No template file $template_file for iterative mode","! ***")
+        println(" *** No template file $template_file for interactive mode","! ***")
         exit(1)
     end
 
@@ -62,6 +62,14 @@ include("hiop.jl")
 
 ncont = get_number_of_contingencies(instance_name)
 ntasks = string(ncont+1)
+
+if parse(Int, ntasks)!= parse(Int, ENV["SLURM_NTASKS"])
+   println("")
+   println(" # of allocated processors: ", ENV["SLURM_NTASKS"])
+   println(" # of processors needed: >= ", ntasks)
+   println(" *** Execution aborted! ***\n")
+   exit()
+end
 
 max_iter = haskey(ENV, "MAX_ITER") ? parse(Int, ENV["MAX_ITER"]) : typemax(Int)
 
@@ -128,7 +136,7 @@ if yes_pressed()
 else
 
    println("\n --- Generated batch file: $output_file ---\n")
-   println(" --- To run on iterative node allocation: ./$output_file ---\n\n")
+   println(" --- To run on interactive node allocation: ./$output_file ---\n\n")
 
 end
 

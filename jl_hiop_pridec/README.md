@@ -97,7 +97,7 @@ Script templates:
 
       sbatch output/scripts/sub_<case>.sbatch
 
-## Execution (iterative pdebug node allocation)
+## Execution (interactive pdebug node allocation)
 
    Before executing, the code must be compiled (see **Compilation**)
 
@@ -105,7 +105,7 @@ Script templates:
 
    2) Generate the batch:
 
-      ./run_iterative.sh instance [contingency]
+      ./run_interactive.sh instance [contingency]
 
       - instance: bus system
       - contingency: contingency file name without the extension, if contingency file name is NOT 'case.con'
@@ -121,7 +121,7 @@ Script templates:
 
       ./output/scripts/run_<case>.sh
 
-   IMPORTANT: before running the code iteratively, you must allocate a node with the necessary number of processors using the following command:
+   IMPORTANT: before running the code interactively, you must allocate a node with the necessary number of processors using the following command:
 
          salloc -N1 -nNTASKS -ppdebug
 
