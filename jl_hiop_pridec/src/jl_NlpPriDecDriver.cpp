@@ -53,7 +53,7 @@ std::string sep(1, preferred_separator); // convert char to string
 
 std::string defoutput = "output"+sep+"rank_" + std::to_string(rank)+sep;
 // Assume 'rank' is already defined as an int
-std::string outputDir = std::getenv("OUTPUT_DIR_RANK") ? std::getenv("OUTPUT_DIR_RANK"): defoutput;
+std::string outputDir = std::getenv("OUTPUT_ITER") ? std::getenv("OUTPUT_ITER"): defoutput;
 if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.back() != '\\') {
     outputDir += preferred_separator;
 }
@@ -90,13 +90,12 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
 
   int ncont = prob_data.number_of_contingencies(); //6//20;
   if (rank==0)
-     std::cout<<" # of contingencies: "<<ncont<<"\n\n";\
-  if (comm_size != ncont+1)
+     std::cout<<" # of contingencies: "<<ncont<<" comm_size: "<<comm_size<<"\n\n";
+  if ((comm_size < 2) || (comm_size > ncont+1))
   {
        if (rank==0)
-          std::cout << " Total number of processes must be "<<ncont+1<<"! Execution aborted!\n\n" << std::endl;
+          std::cout << " Total number of processes must be >=2 and <= "<<ncont+1<<"! Execution aborted!\n\n" << std::endl;
       exit(0);
-
   }
 
   int nc = prob_data.number_of_columns(); //6//20;
@@ -105,6 +104,8 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
   for(int i = 0; i < nc; i++) list[i] = i;
 
   JL_PriDecMasterProblem pridec_problem(prob_data);
+
+ std::cout<<"\n # of NC: "<<nc<<"\n\n";
 
   hiop::hiopAlgPrimalDecomposition pridec_solver(&pridec_problem, nc, list, MPI_COMM_WORLD);
 

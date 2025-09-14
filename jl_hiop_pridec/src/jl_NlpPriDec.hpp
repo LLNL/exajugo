@@ -34,11 +34,13 @@ class JL_PriDecMasterProblem : public hiopInterfacePriDecProblem
 
 public:
 
+size_type nevals;
+
 JL_Interface opt_data;
 
   JL_PriDecMasterProblem(const JL_Interface& _opt_data)
       : 
-        opt_data(_opt_data),
+        nevals(0), opt_data(_opt_data),
         obj_(-1e20),
         sol_(nullptr), evaluator_(nullptr)
   {
@@ -46,6 +48,7 @@ JL_Interface opt_data;
     n_ = opt_data.number_of_columns();
     S_ = opt_data.number_of_contingencies();
     nc_=n_;
+    std::cout<<" n_ = "<<n_<<" "<<" S_ = "<<S_<<std::endl<<std::endl;
   }
 
   virtual ~JL_PriDecMasterProblem()

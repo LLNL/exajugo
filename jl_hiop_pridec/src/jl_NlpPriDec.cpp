@@ -15,6 +15,7 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
                                                      const double* hess /*=0*/,
                                                      const char* master_options_file /*=nullptr*/)
 {
+  nevals+=1;
 
   obj_ = -1e+20;
   hiopSolveStatus status;
@@ -56,9 +57,7 @@ bool JL_PriDecMasterProblem::eval_f_rterm(size_type idx, const int& n, const dou
 {
    //solve recourse
 
-   opt_data.solve_contingency_recourse(idx, rval); 
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   opt_data.solve_contingency_recourse(nevals, idx, rval); 
 
    return true;
 };

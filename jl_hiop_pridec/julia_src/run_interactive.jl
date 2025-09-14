@@ -62,6 +62,7 @@ include("hiop.jl")
 
 ncont = get_number_of_contingencies(instance_name)
 ntasks = string(ncont+1)
+ntasks = ENV["SLURM_NTASKS"]
 
 if parse(Int, ntasks)!= parse(Int, ENV["SLURM_NTASKS"])
    println("")

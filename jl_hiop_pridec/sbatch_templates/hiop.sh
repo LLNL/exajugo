@@ -9,6 +9,13 @@ export OUTPUT_DIR=output/$CASE_$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "${OUTPUT_DIR}"
 
+export OUTPUT_LOGS=$OUTPUT_DIR/rank_logs
+mkdir -p "${OUTPUT_LOGS}"
+
+export OUTPUT_ITER=$OUTPUT_DIR/iterations
+mkdir -p "${OUTPUT_ITER}"
+
+
 {
   echo "CONTINGENCY_FILE=${CONTINGENCY_FILE}"
   echo "MAX_ITER=${MAX_ITER}"
@@ -50,6 +57,6 @@ fi
 
 # Run the executable using srun
 
-srun --output=$OUTPUT_DIR/rank_%t/log_$CASE_%j_%t.out \
-     --error=$OUTPUT_DIR/rank_%t/log_$CASE_%j_%t.err \
-     bash -c 'export OUTPUT_DIR_RANK="'$OUTPUT_DIR'/rank_${SLURM_PROCID}"/; ./build/jl_NlpPriDec.exe $CASE'
+srun --output=$OUTPUT_LOGS/rank_%t/log_$CASE_%j_%t.out \
+     --error=$OUTPUT_LOGS/rank_%t/log_$CASE_%j_%t.err \
+     bash -c 'export OUTPUT_DIR_RANK="'$OUTPUT_LOGS'/rank_${SLURM_PROCID}"/; ./build/jl_NlpPriDec.exe $CASE'

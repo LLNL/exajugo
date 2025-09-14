@@ -535,8 +535,13 @@ function save_cont_solution(file_path, ptr, prev_sol)
 # Given file_path
     dir = dirname(file_path)
     base = basename(file_path)
-    stem = splitext(base)[1]
-    new_name = string(stem, "_iterations.csv")
+ #   stem = splitext(base)[1]
+#    new_name = string(stem, "_iterations.csv")
+
+stem = splitext(base)[1]  # "solution_10"
+number = split(stem, "_")[end]  # "10"
+new_name = "iterations_$(number).csv" 
+
     new_path = joinpath(dir, new_name)
 
     save_opt_iterations(new_path, ("objective"=>prev_sol[].cont_cost))
@@ -557,8 +562,9 @@ function save_solution(file_path, ptr, prev_sol)
 # Given file_path
     dir = dirname(file_path)
     base = basename(file_path)
-    stem = splitext(base)[1]
-    new_name = string(stem, "_iterations.csv")
+#    stem = splitext(base)[1]
+ #   new_name = string(stem, "_iterations.csv")
+    new_name = "iterations.csv" 
     new_path = joinpath(dir, new_name)
 
     save_opt_iterations(new_path, ("objective"=>prev_sol[].base_cost))
@@ -625,16 +631,6 @@ function save_opt_iterations(file_path, kval::Pair{String, Float64})
         
         # Determine the number of rows in the existing file
         num_rows = size(existing_data, 1)
-        
-      #  columns = Dict(
-      #  :iteration => num_rows,
-      #  Symbol(fd_name) => value, 
-      #  :execution_time => exec_time, 
-      #  :time_stamp => now())
-
-        # Create a new row with iteration set to num_rows and the given objective
-       # new_data = DataFrame(columns)
-        
 
         # Create a NamedTuple to ensure column order
         new_row = (; iteration=num_rows, Symbol(fd_name)=>value, execution_time=exec_time, time_stamp=now())
@@ -664,10 +660,6 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
 
    G = ptr_rderivaties[].gradient
    H = ptr_rderivaties[].hessian
-
-#   recourse_fx = (args...) ->  begin x = collect(args); (1/2)*(x.^2)'H + (G - H.*x)'x end
-#   recourse_gx = (argG, args...) ->   begin  x = collect(args);  argG .= G.*x;  end
-#   recourse_Hx = (argH, args...) ->   begin  x = collect(args); argH[diagind(argH)].=H;  end
 
    n = length(G)
 

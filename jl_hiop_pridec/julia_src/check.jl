@@ -29,7 +29,7 @@ using TimeZones
 
 parent_folder = "output"
 exclude_dir = "scripts"
-mask = "*iterations.csv"
+mask = "iterations*.csv"
 
 # Check for name filter in command-line arguments
 name_filter = length(ARGS) > 0 ? ARGS[1] : ""
@@ -78,105 +78,114 @@ else
     end
     # ---------------------------------------------------
 
-    # Find all subdirectories starting with 'rank_' inside the most recent directory
-    rank_dirs = filter(f -> isdir(f) && startswith(basename(f), "rank_"), joinpath.(most_recent_dir, readdir(most_recent_dir)))
-    
-    # --- SORT THE rank_dirs NUMERICALLY ---
-    function get_rank_number(dir)
-        m = match(r"rank_(\d+)", basename(dir))
-        return m === nothing ? -1 : parse(Int, m.captures[1])
-    end
-    rank_dirs = sort(rank_dirs, by=get_rank_number)
-    # --------------------------------------
+    # --- NEW: Look for iterations/ subdirectory ---
+    iterations_dir = joinpath(most_recent_dir, "iterations")
 
-    if isempty(rank_dirs)
-        println("      No directories starting with 'rank_' found in $most_recent_dir")
+    if !isdir(iterations_dir)
+        println("      No 'iterations' directory found in $most_recent_dir")
     else
-        # Get local timezone
-        local_tz = localzone()
+        # Find all subdirectories with numeric names inside 'iterations'
+        subdirs = filter(f -> isdir(f) && occursin(r"^\d+$", basename(f)), joinpath.(iterations_dir, readdir(iterations_dir)))
+        
+        # Sort numerically
+        function get_number(dir)
+            try
+                parse(Int, basename(dir))
+            catch
+                -1
+            end
+        end
+        subdirs = sort(subdirs, by=get_number)
 
-        # Collect data for table
-        rows = []
-        for rank_dir in rank_dirs
-            rank_num = get_rank_number(rank_dir)
+        if isempty(subdirs)
+            println("      No numeric subdirectories found in $iterations_dir")
+        else
+            # Get local timezone
+            local_tz = localzone()
 
-            # Always get directory creation time (or ctime) in local time
-            dir_stat = stat(rank_dir)
-            dir_created = hasproperty(dir_stat, :birthtime) ? dir_stat.birthtime : dir_stat.ctime
-            dt_create_utc = unix2datetime(dir_created)
-            dt_create_local = astimezone(ZonedDateTime(dt_create_utc, tz"UTC"), local_tz)
-            date_created = Dates.format(dt_create_local, "yyyy-mm-dd HH:MM:SS")
+            # Collect data for table
+            rows = []
+            for subdir in subdirs
+                num = basename(subdir)
 
-            files = glob(mask, rank_dir)
-            if isempty(files)
-                count = 0
-                last_update = ""
-                objective = ""
-            else
-                # Use most recently modified file
-                file = files[argmax(stat.(files) .|> x -> x.mtime)]
-                count = max(countlines(file) - 1, 0)
+                # Always get directory creation time (or ctime) in local time
+                dir_stat = stat(subdir)
+                dir_created = hasproperty(dir_stat, :birthtime) ? dir_stat.birthtime : dir_stat.ctime
+                dt_create_utc = unix2datetime(dir_created)
+                dt_create_local = astimezone(ZonedDateTime(dt_create_utc, tz"UTC"), local_tz)
+                date_created = Dates.format(dt_create_local, "yyyy-mm-dd HH:MM:SS")
 
-                # Get file modification time in local time
-                file_stat = stat(file)
-                dt_update_utc = unix2datetime(file_stat.mtime)
-                dt_update_local = astimezone(ZonedDateTime(dt_update_utc, tz"UTC"), local_tz)
-                last_update = Dates.format(dt_update_local, "yyyy-mm-dd HH:MM:SS")
+                files = glob(mask, subdir)
+                if isempty(files)
+                    count = 0
+                    last_update = ""
+                    objective = ""
+                else
+                    # Use most recently modified file
+                    file = files[argmax(stat.(files) .|> x -> x.mtime)]
+                    count = max(countlines(file) - 1, 0)
 
-                # Read objective value if more than one row
-                if count > 0
-                    open(file, "r") do io
-                        readline(io) # skip header
-                        last_line = ""
-                        for line in eachline(io)
-                            last_line = line
-                        end
-                        if !isempty(last_line)
-                            fields = split(last_line, ',')
-                            if length(fields) >= 2
-                                objective = strip(fields[2])
+                    # Get file modification time in local time
+                    file_stat = stat(file)
+                    dt_update_utc = unix2datetime(file_stat.mtime)
+                    dt_update_local = astimezone(ZonedDateTime(dt_update_utc, tz"UTC"), local_tz)
+                    last_update = Dates.format(dt_update_local, "yyyy-mm-dd HH:MM:SS")
+
+                    # Read objective value if more than one row
+                    if count > 0
+                        open(file, "r") do io
+                            readline(io) # skip header
+                            last_line = ""
+                            for line in eachline(io)
+                                last_line = line
+                            end
+                            if !isempty(last_line)
+                                fields = split(last_line, ',')
+                                if length(fields) >= 2
+                                    objective = strip(fields[2])
+                                else
+                                    objective = ""
+                                end
                             else
                                 objective = ""
                             end
-                        else
-                            objective = ""
                         end
+                    else
+                        objective = ""
                     end
-                else
-                    objective = ""
                 end
+                push!(rows, (string(num), string(count), date_created, last_update, objective))
             end
-            push!(rows, (string(rank_num), string(count), date_created, last_update, objective))
-        end
 
-        # Calculate column widths
-        headers = ["rank", "# of iterations", "date created", "last update", "last objective"]
-        cols = [getindex.(rows, i) for i in 1:5]
-        col_widths = [maximum(length.(col)) for col in cols]
-        for (i, h) in enumerate(headers)
-            col_widths[i] = max(col_widths[i], length(h))
-        end
+            # Calculate column widths
+            headers = ["number", "# of iterations", "date created", "last update", "last objective"]
+            cols = [getindex.(rows, i) for i in 1:5]
+            col_widths = [maximum(length.(col)) for col in cols]
+            for (i, h) in enumerate(headers)
+                col_widths[i] = max(col_widths[i], length(h))
+            end
 
-        # Print header
-        print("      ")
-        for (h, w) in zip(headers, col_widths)
-            print(rpad(h, w), "  ")
-        end
-        println()
-        # Print separator
-        print("      ")
-        for w in col_widths
-            print("-"^w, "  ")
-        end
-        println()
-
-        # Print rows
-        for row in rows
+            # Print header
             print("      ")
-            for (val, w) in zip(row, col_widths)
-                print(rpad(val, w), "  ")
+            for (h, w) in zip(headers, col_widths)
+                print(rpad(h, w), "  ")
             end
             println()
+            # Print separator
+            print("      ")
+            for w in col_widths
+                print("-"^w, "  ")
+            end
+            println()
+
+            # Print rows
+            for row in rows
+                print("      ")
+                for (val, w) in zip(row, col_widths)
+                    print(rpad(val, w), "  ")
+                end
+                println()
+            end
         end
     end
 end

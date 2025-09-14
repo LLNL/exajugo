@@ -13,6 +13,11 @@
 
 #include <memory>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <string>
+#include <sstream>
+
 #include <filesystem>
 //namespace fs = std::filesystem;
 extern const char preferred_separator;
@@ -100,18 +105,19 @@ private:
     double* data_buffer;   // Buffer for MPI communication
     std::string instance;   // Instance name
     std::string outputDir;
+    int last_read;
 
-// Assumes outputDir is defined elsewhere and ends WITHOUT a separator
-std::string buildOutputPath(const std::string& fileName) {
-   // char sep = fs::path::preferred_separator;
-    char sep = preferred_separator;
-    std::string result = outputDir;
-    if (!result.empty() && result.back() != sep) {
-        result += sep;
-    }
-    result += fileName+".csv";
-    return result;
+
+std::string buildOutputPath(const std::string& fileName, int cont_id) {
+    std::ostringstream dir;
+    dir << outputDir << "/" << cont_id;
+    mkdir(dir.str().c_str(), 0777); // creates directory if it doesn't exist
+
+    std::ostringstream filePath;
+    filePath << dir.str() << "/" << fileName << ".csv";
+    return filePath.str();
 }
+
 
 protected:
 
@@ -186,9 +192,21 @@ public:
 
     void getCost(double& rval) { rval =  jl_unbox_float64(jl_call1(jl_getCost, cont_sol.get())); }
 
-    void solve_contingency_recourse(int i, double& rval) 
+    void solve_contingency_recourse(int iter, int i, double& rval) 
     {  
-        receive_solution();
+        //if (i<nproc-1)
+
+        std::cout<< " \n\n solve_contingency_recourse last_read: "<<last_read<< "  iter:  "<<iter<<" i = "<<i<<std::endl<<std::endl;
+        if (last_read != iter)
+        {
+           receive_solution();
+           last_read=iter;
+        std::cout<< " \n\n "<<last_read<<". DID NOT RECV "<<iter<<" i = "<<i<<std::endl<<std::endl;
+
+         }
+         else
+        std::cout<< " \n\n DID NOT RECV "<<iter<<" i = "<<i<<std::endl<<std::endl;
+
         solve_contingency_prob(i);  //cont_sol
         getCost(rval);
     }
@@ -196,10 +214,11 @@ public:
     // Solve contingency problem
     void solve_contingency_prob(int i)
     {
+       int cont_id = i+1;
 
-       cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(i+1), base_sol.get()));
+       cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get()));
 
-       save_jl_array(jl_save_cont_solution, "contingency_"+std::to_string(i+1), cont_sol.get());
+       save_jl_array(jl_save_cont_solution, "solution_"+std::to_string(cont_id), cont_sol.get(), cont_id);
 
     }
     
@@ -240,9 +259,9 @@ public:
    
    // Function to save a Julia array to a CSV file
     void save_jl_array(jl_function_t* jl_save,
-                       const std::string& filename, jl_value_t* array_ptr) 
+                       const std::string& filename, jl_value_t* array_ptr, int cont_id=0) 
     {
-       std::string fullpath = buildOutputPath(filename); 
+       std::string fullpath = buildOutputPath(filename, cont_id); 
 
        jl_value_t* jl_fname = jl_cstr_to_string(fullpath.c_str());
        jl_call3(jl_save, jl_fname, opt_data.get(), array_ptr);
