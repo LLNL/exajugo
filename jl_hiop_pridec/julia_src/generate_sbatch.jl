@@ -1,28 +1,13 @@
 # save this as generate_sbatch.jl
 
+include("batch_helper_functions.jl")
+
 # Check for correct number of arguments
 if length(ARGS) < 2
     println("Usage: julia generate_sbatch.jl case batch_time")
     exit(1)
 end
 
-
-function check_env_vars()
-    required_vars = [
-        "PATH_TO_EXAJUGO",
-        "PATH_TO_INSTANCES",
-        "PATH_TO_HSLLIB",
-        "HIOP_INSTALL_DIR"
-    ]
-    missing = filter(var -> !haskey(ENV, var), required_vars)
-    if isempty(missing)
-        println(" --- All required environment variables are set! ---")
-        return true
-    else
-        println(" *** Missing environment variables: ", join(missing, ", ")," ***")
-        return false
-    end
-end
 
 if !check_env_vars()
     println(" *** Execution aborted! ***")
@@ -71,6 +56,16 @@ include("hiop.jl")
 
 ncont = get_number_of_contingencies(instance_name)
 ntasks = string(ncont+1)
+if haskey(ENV, "NTASKS")
+   ntasks = parse(Int, ENV["NTASKS"])
+else
+  new_value = read_ntasks_or_nothing()
+  if new_value !== nothing
+     ntasks = new_value
+  end
+end
+
+error_tasks(ntasks)
 
 max_iter = haskey(ENV, "MAX_ITER") ? parse(Int, ENV["MAX_ITER"]) : typemax(Int)
 
@@ -83,11 +78,9 @@ output = replace(template, "\$HIOP_SH" => hiop_sh)
 output = replace(output, "\$CASE" => instance_name, "\$NTASKS" => ntasks, 
             "\$TIME" => batch_time, "\$CONT_FILE" => cont_file, "\$MAX_ITER" => max_iter)
 
-
 output_dir = joinpath("output","scripts")
 
 mkpath(output_dir)
-
 
 # Write to output file
 output_file = joinpath(output_dir, "sub_$(instance_name).sbatch")
@@ -100,21 +93,13 @@ println("")
 println(output)
 println("")
 
-function yes_pressed()
-    println(" Execute? ENTER=yes, any key=no")
-    run(`stty raw -echo`)
-    c = read(stdin, Char)
-    run(`stty -raw echo`)
-    println()
-    return c == '\r' || c == '\n'
-end
-
 ENV["BATCH_FILE"]=output_file
-
 
 if yes_pressed()
 
-  run(`sbatch $output_file`)
+   run(`sbatch $output_file`)
+   println("\n --- Batch submitted: $output_file ---\n")
+
 
 else
 

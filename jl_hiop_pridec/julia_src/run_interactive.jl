@@ -1,28 +1,14 @@
 # save this as generate_sbatch.jl
 
+include("batch_helper_functions.jl")
+
+
 # Check for correct number of arguments
 if length(ARGS) < 1
     println("Usage: julia run_interactive.jl  case")
     exit(1)
 end
 
-
-function check_env_vars()
-    required_vars = [
-        "PATH_TO_EXAJUGO",
-        "PATH_TO_INSTANCES",
-        "PATH_TO_HSLLIB",
-        "HIOP_INSTALL_DIR"
-    ]
-    missing = filter(var -> !haskey(ENV, var), required_vars)
-    if isempty(missing)
-        println(" --- All required environment variables are set! ---")
-        return true
-    else
-        println(" *** Missing environment variables: ", join(missing, ", ")," ***")
-        return false
-    end
-end
 
 if !check_env_vars()
     println(" *** Execution aborted! ***")
@@ -61,16 +47,10 @@ ENV["CONTINGENCY_FILE"]=cont_file
 include("hiop.jl")
 
 ncont = get_number_of_contingencies(instance_name)
-ntasks = string(ncont+1)
+#ntasks = string(ncont+1)
 ntasks = ENV["SLURM_NTASKS"]
 
-if parse(Int, ntasks)!= parse(Int, ENV["SLURM_NTASKS"])
-   println("")
-   println(" # of allocated processors: ", ENV["SLURM_NTASKS"])
-   println(" # of processors needed: >= ", ntasks)
-   println(" *** Execution aborted! ***\n")
-   exit()
-end
+error_tasks(ntasks)
 
 max_iter = haskey(ENV, "MAX_ITER") ? parse(Int, ENV["MAX_ITER"]) : typemax(Int)
 
@@ -94,7 +74,6 @@ output_dir = joinpath("output","scripts")
 
 mkpath(output_dir)
 
-
 # Write to output file
 output_file = joinpath(output_dir, "run_$(instance_name).sh")
 
@@ -113,14 +92,6 @@ println("")
 println(output)
 println("")
 
-function yes_pressed()
-    println(" Execute? ENTER=yes, any key=no")
-    run(`stty raw -echo`)
-    c = read(stdin, Char)
-    run(`stty -raw echo`)
-    println()
-    return c == '\r' || c == '\n'
-end
 
 ENV["BATCH_FILE"]=output_file
 

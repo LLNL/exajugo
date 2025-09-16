@@ -87,15 +87,25 @@ Script templates:
 
       The generated script will be written to "output/scripts/"
 
-   3) After the execution, the generated script will be shown in the screen. If you wish to submit it, press ENTER. Otherwise, press any key. In case you pressed any key OTHER THAN ENTER, you will see this:
+   3) During execution, you will be able to enter the number of tasks (>=2), as then following will be printed:
+
+         "Enter # of tasks or press ENTER to set # of tasks= # of contingencies+1):"
+
+         If you press ENTER, then the script will automatically set the # of processors = # of contingencies+1
+
+      IMPORTANT: if you set the environment variable NTASKS, its value will be used as the # of processors.
+
+
+   4) After the execution, the generated script will be shown in the screen. If you wish to submit it, press ENTER. Otherwise, press any key. In case you pressed any key OTHER THAN ENTER, you will see this:
 
     --- Generated batch file: output/scripts/sub_<case>.sbatch ---
 
     --- RUN: sbatch output/scripts/sub_<case>.sbatch ---
 
-   4) If you wish to run the command displaied in last line of the output:
+   5) If you wish to run the command displaied in last line of the output:
 
       sbatch output/scripts/sub_<case>.sbatch
+
 
 ## Execution (interactive pdebug node allocation)
 
