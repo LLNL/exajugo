@@ -36,14 +36,12 @@ end
 
 function error_tasks(ntasks)
 
-   if ntasks<2
-       println(" *** # of tasks must be >= 2 ***")
+   if ntasks<1
+       println(" *** # of tasks must be >= 1 ***")
        exit(1)
    end
 
 end
-
-
 
 
 

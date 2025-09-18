@@ -55,7 +55,7 @@ ENV["CONTINGENCY_FILE"]=cont_file
 include("hiop.jl")
 
 ncont = get_number_of_contingencies(instance_name)
-ntasks = string(ncont+1)
+ntasks = ncont+1
 if haskey(ENV, "NTASKS")
    ntasks = parse(Int, ENV["NTASKS"])
 else
@@ -66,6 +66,7 @@ else
 end
 
 error_tasks(ntasks)
+ntasks = string(ntasks)
 
 max_iter = haskey(ENV, "MAX_ITER") ? parse(Int, ENV["MAX_ITER"]) : typemax(Int)
 

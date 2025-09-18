@@ -91,7 +91,7 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
   int ncont = prob_data.number_of_contingencies(); //6//20;
   if (rank==0)
      std::cout<<" # of contingencies: "<<ncont<<" comm_size: "<<comm_size<<"\n\n";
-  if ((comm_size < 2) || (comm_size > ncont+1))
+  if ((comm_size < 1) || (comm_size > ncont+1))
   {
        if (rank==0)
           std::cout << " Total number of processes must be >=2 and <= "<<ncont+1<<"! Execution aborted!\n\n" << std::endl;
