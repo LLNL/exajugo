@@ -21,6 +21,7 @@ Julia code:
 
  - hiop.jl: contains the functions that interface with exajugo;
  - generate_sbatch.jl: generates sbatch file for slurm;
+ - run_interactive.jl: generates script to run interactively in a debug node for slurm;
  - test_cases.jl: functions that load test instances;
  - test.jl: function that loads bus9 case and solves the base case.
 
@@ -29,6 +30,7 @@ Scripts:
  - load.sh: load the necessary environment variables to compile/run the code;
  - compile.sh: compiles the run;
  - generate_batch.sh: calls julia with generate_sbatch.jl.
+ - run_interactive.sh: calls julia with run_interactive.jl.
 
 Script templates:
 
@@ -159,8 +161,10 @@ Script templates:
    All output files are saved in different directories according to the ranks of the processes: rank_0, rank_1, ...
    
    Outputs are written to two different directories:
+
       - rank_logs: logs of all ranks are written to this directory, written to different directories according to rank;
-      - iterations: solution and iteration data for the master problem as well as for each contingency problem are saved to this directory in different directories, according to the contingency number (0 for master).
+
+      - problems: solution and iteration data for the master problem as well as for each contingency problem are saved to this directory in different directories, according to the contingency number (0 for master).
 
    Logs: the logs saved to rank_logs directory are the following:
       - log_case_JOBNUMBER_0.out: screen output;

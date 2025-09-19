@@ -90,11 +90,12 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
 
   int ncont = prob_data.number_of_contingencies(); //6//20;
   if (rank==0)
-     std::cout<<" # of contingencies: "<<ncont<<" comm_size: "<<comm_size<<"\n\n";
+     std::cout<<" # of contingencies: "<<ncont<<" # of processes: "<<comm_size<<"\n\n";
+
   if ((comm_size < 1) || (comm_size > ncont+1))
   {
        if (rank==0)
-          std::cout << " Total number of processes must be >=2 and <= "<<ncont+1<<"! Execution aborted!\n\n" << std::endl;
+          std::cout << " Total number of processes must be > 0 and <= "<<ncont+1<<"! Execution aborted!\n\n" << std::endl;
       exit(0);
   }
 
@@ -104,8 +105,6 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
   for(int i = 0; i < nc; i++) list[i] = i;
 
   JL_PriDecMasterProblem pridec_problem(prob_data);
-
- std::cout<<"\n # of NC: "<<nc<<"\n\n";
 
   hiop::hiopAlgPrimalDecomposition pridec_solver(&pridec_problem, nc, list, MPI_COMM_WORLD);
 

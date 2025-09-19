@@ -79,7 +79,7 @@ else
     # ---------------------------------------------------
 
     # --- NEW: Look for iterations/ subdirectory ---
-    iterations_dir = joinpath(most_recent_dir, "iterations")
+    iterations_dir = joinpath(most_recent_dir, "problems")
 
     if !isdir(iterations_dir)
         println("      No 'iterations' directory found in $most_recent_dir")

@@ -12,7 +12,7 @@ mkdir -p "${OUTPUT_DIR}"
 export OUTPUT_LOGS=$OUTPUT_DIR/rank_logs
 mkdir -p "${OUTPUT_LOGS}"
 
-export OUTPUT_ITER=$OUTPUT_DIR/iterations
+export OUTPUT_ITER=$OUTPUT_DIR/problems
 mkdir -p "${OUTPUT_ITER}"
 
 

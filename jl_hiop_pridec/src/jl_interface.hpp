@@ -105,7 +105,6 @@ private:
     double* data_buffer;   // Buffer for MPI communication
     std::string instance;   // Instance name
     std::string outputDir;
-    int last_read;
 
 
 std::string buildOutputPath(const std::string& fileName, int cont_id) {
@@ -185,27 +184,17 @@ public:
     jl_value_t* receive_MPI_data(int tag = 0, bool block = true);
 
     // Send base solution
-    void send_solution() {  send_MPI_data(base_sol.get(), 99, false);  }
+    void send_solution() {  send_MPI_data(base_sol.get(), 99);  }
 
     // Receive base solution
-    void receive_solution()  { base_sol.set(receive_MPI_data(99));  }
+    void receive_solution()  {  base_sol.set(receive_MPI_data(99));  }
 
     void getCost(double& rval) { rval =  jl_unbox_float64(jl_call1(jl_getCost, cont_sol.get())); }
 
-    void solve_contingency_recourse(int iter, int i, double& rval) 
+    void solve_contingency_recourse(int i, double& rval) 
     {  
-        //if (i<nproc-1)
-
-        std::cout<< " \n\n solve_contingency_recourse last_read: "<<last_read<< "  iter:  "<<iter<<" i = "<<i<<std::endl<<std::endl;
-        if (last_read != iter)
-        {
-           receive_solution();
-           last_read=iter;
-        std::cout<< " \n\n "<<last_read<<". DID NOT RECV "<<iter<<" i = "<<i<<std::endl<<std::endl;
-
-         }
-         else
-        std::cout<< " \n\n DID NOT RECV "<<iter<<" i = "<<i<<std::endl<<std::endl;
+        if (i<nproc-1)
+           receive_solution(); 
 
         solve_contingency_prob(i);  //cont_sol
         getCost(rval);
@@ -289,6 +278,7 @@ public:
 
      void solve_base() 
      {
+        std::cout<<"\n\n solve_base: "<<opt_data.get()<<" \n\n";
         base_sol.set(jl_call1(jl_solve_base_case, opt_data.get())); 
 
      }

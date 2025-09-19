@@ -126,7 +126,7 @@ jl_value_t* JL_Interface::jl_array(double *_ptr, int _size)
 
 // Constructor
 JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst, const int _max_it) 
-   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output), last_read(-1)
+   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output)
 {
     include_jl_functions(); // Load Julia functions
 
@@ -151,7 +151,6 @@ void JL_Interface::send_MPI_data(jl_value_t* _dt_ptr, int tag, bool block)
     jl_value_t* jl_data_buffer_s = jl_array(data_buffer, size_buffer);
 
     jl_call2(jl_struct_to_array_generic, _dt_ptr, jl_data_buffer_s);
-
 
     // Send the data using MPI
     for (int i = 1; i < nproc; i++)
@@ -190,6 +189,4 @@ jl_value_t* JL_Interface::receive_MPI_data(int tag, bool block)
 
     return received_data;
 }
-
-
 

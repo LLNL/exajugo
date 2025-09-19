@@ -535,8 +535,6 @@ function save_cont_solution(file_path, ptr, prev_sol)
 # Given file_path
     dir = dirname(file_path)
     base = basename(file_path)
- #   stem = splitext(base)[1]
-#    new_name = string(stem, "_iterations.csv")
 
 stem = splitext(base)[1]  # "solution_10"
 number = split(stem, "_")[end]  # "10"
