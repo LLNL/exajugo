@@ -17,6 +17,8 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
 {
   obj_ = -1e+20;
   hiopSolveStatus status;
+
+  jl_prob.set_hess_multiplier(1.0);
  
   // needs to fix to get the solver status
   jl_prob.solve_base(this->get_recourse_gradient(), this->get_recourse_hessian()); //JL_solve_base_case(opt_data);

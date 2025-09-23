@@ -314,15 +314,21 @@ if haskey(ENV, "HESS_MULTIPLIER")
     val = lowercase(ENV["HESS_MULTIPLIER"])
     parsed_val = tryparse(Float64, val)
     if parsed_val !== nothing
-        grad_multiplier = parsed_val
+        hess_multiplier = parsed_val
     end
 end
 
 function getGradient(ptr, x)
    for (i,v) in enumerate(ptr[].cont_grad)
-       x[i] = v * grad_multiplier
+       x[i] = v
    end
    normalize_x ? (x .= normalize(x)) : nothing
+end
+
+function multiply_array(x, factor)
+
+    x .*= factor
+
 end
 
 
@@ -517,8 +523,8 @@ struct RecourseDerivatives
         grad_copy = Vector{Float64}(undef, _len)
         hess_copy = Vector{Float64}(undef, _len)
 
-        grad_copy .= _grad[1:_len]
-        hess_copy .= _hess[1:_len]
+        grad_copy .= grad_multiplier*_grad[1:_len]
+        hess_copy .= hess_multiplier*_hess[1:_len]
 
         new(grad_copy, hess_copy)
   

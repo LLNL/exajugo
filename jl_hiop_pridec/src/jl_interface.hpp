@@ -42,6 +42,7 @@ extern jl_function_t* jl_getSolution;
 extern jl_function_t* jl_solve_contingency_pridec;
 extern jl_function_t* jl_getCost;
 extern jl_function_t* jl_getGradient;
+extern jl_function_t* jl_gmultiply_array;
     
 extern jl_function_t*  deepcopy_func;
 extern jl_function_t*  jl_serialize_obj;
@@ -125,6 +126,9 @@ protected:
     JL_Pointer cont_sol;   // Julia object for contingency solution
     JL_Pointer fieldsizes; // Used to reconstruct Basesolution struct from master solution
 
+    double grad_multiplier;
+    double hess_multiplier;
+
     double* alloc_buffer(int size)
     {
        release_buffer();
@@ -166,6 +170,13 @@ protected:
 
 public:
   
+    void set_grad_multiplier(double _val) { grad_multiplier =_val; }
+    void set_hess_multiplier(double _val) 
+    { 
+        hess_multiplier =_val; 
+        std::cout<<" hess_multiplier set to "<<hess_multiplier<<std::endl;
+    }
+
     int get_max_iter() { return max_iter; }
 
     JL_Interface(const std::string&, const std::string&, const int _max_it=100);
@@ -212,7 +223,7 @@ public:
     }
     
     jl_value_t* jl_array(double *_ptr, int _size);
-
+    jl_value_t* jl_array_mult(double *_ptr, int _size, double _mult);
 
     // Get gradient
     void getGradient(double* x_vec)
@@ -259,8 +270,8 @@ public:
     // Solve base optimization problem
     void solve_base_case_with_recourse(double *grad, double *hess) 
     {
-       jl_value_t* jl_grad = jl_array(grad, getDim());
-       jl_value_t* jl_hess = jl_array(hess, getDim());
+       jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
+       jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
 
 // this is necessary to root pointers tp protect from Julia GC
        JL_GC_PUSH2(&jl_grad, &jl_hess);
@@ -278,7 +289,6 @@ public:
 
      void solve_base() 
      {
-        std::cout<<"\n\n solve_base: "<<opt_data.get()<<" \n\n";
         base_sol.set(jl_call1(jl_solve_base_case, opt_data.get())); 
 
      }

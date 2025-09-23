@@ -38,6 +38,7 @@ jl_function_t* jl_getSolution;
 jl_function_t* jl_solve_contingency_pridec;
 jl_function_t* jl_getCost;
 jl_function_t* jl_getGradient;
+jl_function_t* jl_multiply_array;
     
 jl_function_t*  deepcopy_func;
 jl_function_t*  jl_serialize_obj;
@@ -91,6 +92,7 @@ void include_jl_functions()
     jl_solve_contingency_pridec = jl_get_function(jl_main_module, "solve_contingency_pridec");
     jl_getCost = jl_get_function(jl_main_module, "getCost");
     jl_getGradient = jl_get_function(jl_main_module, "getGradient");
+    jl_multiply_array = jl_get_function(jl_main_module, "multiply_array");
     
     deepcopy_func = jl_get_function(jl_base_module, "deepcopy");
 
@@ -124,9 +126,19 @@ jl_value_t* JL_Interface::jl_array(double *_ptr, int _size)
 } 
 
 
+jl_value_t* JL_Interface::jl_array_mult(double *_ptr, int _size, double _mult=1.0)
+{
+    jl_value_t* ptr_array =jl_array(_ptr, _size);
+    jl_call2(jl_multiply_array, ptr_array, jl_box_float64(_mult));
+
+    return ptr_array;
+} 
+
+
 // Constructor
 JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst, const int _max_it) 
-   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output)
+   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output),
+     grad_multiplier(1.0), hess_multiplier(1.0)
 {
     include_jl_functions(); // Load Julia functions
 
