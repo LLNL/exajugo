@@ -292,6 +292,8 @@ end
 # Default value
 normalize_x = false
 grad_multiplier = 1.0
+hess_multiplier = 1.0
+
 
 # Check if environment variable exists and update if so
 if haskey(ENV, "NORMALIZE_X")
@@ -302,6 +304,14 @@ end
 
 if haskey(ENV, "GRAD_MULTIPLIER")
     val = lowercase(ENV["GRAD_MULTIPLIER"])
+    parsed_val = tryparse(Float64, val)
+    if parsed_val !== nothing
+        grad_multiplier = parsed_val
+    end
+end
+
+if haskey(ENV, "HESS_MULTIPLIER")
+    val = lowercase(ENV["HESS_MULTIPLIER"])
     parsed_val = tryparse(Float64, val)
     if parsed_val !== nothing
         grad_multiplier = parsed_val
@@ -508,7 +518,7 @@ struct RecourseDerivatives
         hess_copy = Vector{Float64}(undef, _len)
 
         grad_copy .= _grad[1:_len]
-        hess_copy .= _grad[1:_len]
+        hess_copy .= _hess[1:_len]
 
         new(grad_copy, hess_copy)
   
