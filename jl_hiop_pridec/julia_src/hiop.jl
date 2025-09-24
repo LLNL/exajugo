@@ -650,7 +650,7 @@ end
 
 function save_array(file_path, ptr, grad)
    
-    save_opt_data(file_path, ("norm"=>norm(grad)), [round(x, digits=5) for x in grad])
+    save_opt_data(file_path, ("norm"=>norm(grad)), [round(x, digits=5) for x in grad], 1)
 
 end
 
@@ -699,7 +699,7 @@ function save_solution(file_path, ptr, prev_sol)
 
 end
 
-function save_opt_data(file_path, kval::Pair{String, Float64}, sol)
+function save_opt_data(file_path, kval::Pair{String, Float64}, sol, beg=0)
 
   fd_name = kval.first
   value = kval.second
@@ -712,7 +712,7 @@ function save_opt_data(file_path, kval::Pair{String, Float64}, sol)
         num_rows = size(existing_data, 1)
         
         columns = Dict(
-        :iteration => num_rows,
+        :iteration => num_rows+beg,
         Symbol(fd_name) => value,
         [Symbol("x_$i") => sol[i] for i in 1:length(sol)]...)
 
@@ -727,7 +727,7 @@ function save_opt_data(file_path, kval::Pair{String, Float64}, sol)
     else
         # If the file does not exist, create it with iteration set to 0 and the given objective
         columns = Dict(
-        :iteration => 0,
+        :iteration => beg,
         Symbol(fd_name) => value,
         [Symbol("x_$i") => sol[i] for i in 1:length(sol)]...)
 
