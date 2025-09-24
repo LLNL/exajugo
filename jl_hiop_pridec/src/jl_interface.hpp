@@ -360,12 +360,12 @@ public:
        base_sol.set(jl_call3(jl_solve_base_case_recourse_sparse, opt_data.get(), base_sol.get(), ptr_rderivatives));
 
        save_jl_array(jl_save_array, "gradient", (jl_value_t*)jl_grad);
-     //  save_jl_array(jl_save_array, "hessian", (jl_value_t*)jl_hess);
-
        save_jl_array("hessian", sparse_hessian.get(), iter);
 
        JL_GC_POP();
+
        free_arrays(_rows, _cols, _vals);
+
      }
 
     // Solve base optimization problem

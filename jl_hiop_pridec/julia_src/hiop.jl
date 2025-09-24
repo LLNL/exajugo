@@ -554,14 +554,9 @@ struct SparseMatrixIndexWrap
 end
 
 function get_sparse_matrix_index_wrap(rows, cols, _len)
-    println("\n get_sparse_matrix_index_wrap \n")
-        flush(stdout)
 
-    GETSP= Ref(SparseMatrixIndexWrap(rows, cols, _len))
-    println(" == ")
-        flush(stdout)
+    return Ref(SparseMatrixIndexWrap(rows, cols, _len))
 
-    return GETSP
 end
 
 
@@ -588,7 +583,7 @@ end
 
 
 struct RecourseSparseHessian
-    gradient::Ref{Vector{Float64}}
+    gradient::Vector{Float64}
     hessian::Ref{SparseMatrixWrap}
 
     function RecourseSparseHessian(_grad, hess::Ref{SparseMatrixWrap}, _len) 
@@ -642,7 +637,7 @@ function save_opt_sparse_data(base_file_path::AbstractString, sparse_matrix::Spa
 
     # Build the new filename with iteration number
     parts = Base.splitext(base_file_path)
-    new_file = string(parts[1], "_iter", iteration, parts[2])
+    new_file = string(parts[1], "_iter_", iteration, parts[2])
 
     CSV.write(new_file, new_rows)
 end
