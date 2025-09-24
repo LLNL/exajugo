@@ -28,7 +28,11 @@ jl_function_t* jl_number_of_columns;
 jl_function_t* jl_solve_base_case;
 
 jl_function_t* jl_solve_base_case_recourse;
+jl_function_t* jl_solve_base_case_recourse_sparse;
 jl_function_t* jl_get_recourse_derivatives;
+jl_function_t* jl_get_recourse_sparse;
+jl_function_t* jl_get_sparse_matrix_wrap;
+jl_function_t* jl_get_sparse_matrix_index_wrap;
 
 jl_function_t* jl_getModel;
 jl_function_t* jl_getDim;
@@ -53,6 +57,7 @@ jl_function_t* jl_debug_array;
 jl_function_t* jl_save_solution;
 jl_function_t* jl_save_cont_solution;
 jl_function_t* jl_save_array;
+jl_function_t* jl_save_sparse_matrix;
 
 jl_function_t* jl_struct_to_array_generic;
 jl_function_t* jl_array_to_struct;
@@ -82,7 +87,13 @@ void include_jl_functions()
     jl_solve_base_case = jl_get_function(jl_main_module, "solve_base_case");
 
     jl_solve_base_case_recourse = jl_get_function(jl_main_module, "solve_base_case_recourse");
+    jl_solve_base_case_recourse_sparse = jl_get_function(jl_main_module, "solve_base_case_recourse_sparse");
+
     jl_get_recourse_derivatives = jl_get_function(jl_main_module, "get_recourse_derivatives");
+    jl_get_recourse_sparse = jl_get_function(jl_main_module, "get_recourse_sparse");
+
+    jl_get_sparse_matrix_wrap = jl_get_function(jl_main_module, "get_sparse_matrix_wrap");
+    jl_get_sparse_matrix_index_wrap = jl_get_function(jl_main_module, "get_sparse_matrix_index_wrap");
 
     jl_getModel = jl_get_function(jl_main_module, "getModel");
     jl_getDim = jl_get_function(jl_main_module, "getDim");
@@ -107,6 +118,7 @@ void include_jl_functions()
     jl_save_solution = jl_get_function(jl_main_module, "save_solution");
     jl_save_cont_solution = jl_get_function(jl_main_module, "save_cont_solution");
     jl_save_array = jl_get_function(jl_main_module, "save_array");
+    jl_save_sparse_matrix = jl_get_function(jl_main_module, "save_sparse_matrix");
 
     jl_struct_to_array_generic = jl_get_function(jl_main_module, "struct_to_array_generic!");
     jl_array_to_struct = jl_get_function(jl_main_module, "array_to_struct");
@@ -118,6 +130,12 @@ void include_jl_functions()
 
 }
 
+
+jl_value_t* JL_Interface::jl_array(int64_t *_ptr, int _size)
+{
+    jl_value_t* array_type = jl_apply_array_type((jl_value_t*)jl_int64_type, 1);
+    return (jl_value_t*) jl_ptr_to_array_1d(array_type, _ptr, _size, 0);
+}
 
 jl_value_t* JL_Interface::jl_array(double *_ptr, int _size)
 {
@@ -137,7 +155,7 @@ jl_value_t* JL_Interface::jl_array_mult(double *_ptr, int _size, double _mult=1.
 
 // Constructor
 JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst, const int _max_it) 
-   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output),
+   : max_iter(_max_it), size_buffer(0), data_buffer(nullptr), instance(_inst), outputDir(_output), iter(0),
      grad_multiplier(1.0), hess_multiplier(1.0)
 {
     include_jl_functions(); // Load Julia functions

@@ -32,7 +32,11 @@ extern jl_function_t* jl_number_of_columns;
 extern jl_function_t* jl_solve_base_case ;
 
 extern jl_function_t* jl_solve_base_case_recourse;
+extern jl_function_t* jl_solve_base_case_recourse_sparse;
 extern jl_function_t* jl_get_recourse_derivatives;
+extern jl_function_t* jl_get_recourse_sparse;
+extern jl_function_t* jl_get_sparse_matrix_index_wrap;
+extern jl_function_t* jl_get_sparse_matrix_wrap;
 
 extern jl_function_t* jl_getModel;
 extern jl_function_t* jl_getDim;
@@ -57,6 +61,7 @@ extern jl_function_t* jl_debug_array;
 extern jl_function_t* jl_save_solution;
 extern jl_function_t* jl_save_cont_solution;
 extern jl_function_t* jl_save_array;
+extern jl_function_t* jl_save_sparse_matrix;
 
 extern jl_function_t* jl_struct_to_array_generic;
 extern jl_function_t* jl_array_to_struct;
@@ -128,6 +133,10 @@ protected:
 
     double grad_multiplier;
     double hess_multiplier;
+    int iter;
+
+    JL_Pointer sparse_index;
+    JL_Pointer sparse_hessian;
 
     double* alloc_buffer(int size)
     {
@@ -223,6 +232,7 @@ public:
     }
     
     jl_value_t* jl_array(double *_ptr, int _size);
+    jl_value_t* jl_array(int64_t *_ptr, int _size);
     jl_value_t* jl_array_mult(double *_ptr, int _size, double _mult);
 
     // Get gradient
@@ -267,6 +277,97 @@ public:
        jl_call3(jl_save, jl_fname, opt_data.get(), array_ptr);
     }
 
+   // Function to save a Julia array to a CSV file
+    void save_jl_array(const std::string& filename, jl_value_t* array_ptr, int _iter) 
+    {
+       std::string fullpath = buildOutputPath(filename, 0); 
+
+       jl_value_t* jl_fname = jl_cstr_to_string(fullpath.c_str());
+       jl_call3(jl_save_sparse_matrix, jl_fname, array_ptr, jl_box_int64(_iter));
+    }
+
+    void sparse_matrix_wrap(int64_t *_rows, int64_t *_cols, double *_vals, int64_t _nelements)
+    {
+       jl_value_t* jl_rows = jl_array(_rows, _nelements); 
+       jl_value_t* jl_cols = jl_array(_cols, _nelements); 
+       jl_value_t* jl_vals = jl_array(_vals, _nelements);
+
+      // JL_GC_PUSH1(&jl_vals);
+
+       sparse_index.set(jl_call3(jl_get_sparse_matrix_index_wrap, jl_rows, jl_cols, jl_box_int64(_nelements)));
+
+       sparse_hessian.set(jl_call3(jl_get_sparse_matrix_wrap, sparse_index.get(), jl_vals, jl_box_int64(_nelements)));
+      // JL_GC_POP();
+
+    }
+
+    void denseToSparse(const double* hess, size_t nrows, int64_t*& _rows, int64_t*& _cols, double*& _vals, int64_t& nnz) 
+    {
+        nnz = 0;
+        // First pass: count nonzeros
+        for (size_t i = 0; i < nrows; ++i)
+            ++nnz;
+
+        // Allocate arrays
+        _rows = (int64_t*) malloc(nnz * sizeof(int64_t));
+        _cols = (int64_t*) malloc(nnz * sizeof(int64_t));
+        _vals = (double*)  malloc(nnz * sizeof(double));
+        // Second pass: fill arrays
+        size_t idx = 0;
+        for (size_t i = 0; i < nrows; ++i) 
+        {
+                double val = hess[i];
+                if (val != 0.0) 
+                {
+                    _rows[idx] = static_cast<int64_t>(i);
+                    _cols[idx] = static_cast<int64_t>(i);
+                    _vals[idx] = val;
+                    ++idx;
+                }
+            }
+    }
+
+    void free_arrays(int64_t*& _rows, int64_t*& _cols, double*& _vals) 
+    {
+         free(_rows); _rows=nullptr;
+         free(_cols); _cols=nullptr;
+         free(_vals); _vals=nullptr;
+    }
+
+    // Solve base optimization problem
+    void test_solve_base_case_with_recourse(double *grad, double *hess) 
+    {
+       jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
+     //  jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
+
+       int64_t* _rows;
+       int64_t* _cols;
+       double* _vals;
+       int64_t nnz=getDim();
+       iter+=1;
+
+      // convert hessian to sparse for testing
+       denseToSparse(hess, getDim(), _rows, _cols, _vals, nnz);
+
+       sparse_matrix_wrap(_rows, _cols, _vals, nnz);
+
+// this is necessary to root pointers tp protect from Julia GC
+       JL_GC_PUSH1(&jl_grad);
+
+       jl_value_t* ptr_rderivatives = 
+          jl_call3(jl_get_recourse_sparse, jl_grad, sparse_hessian.get(), jl_box_int64(getDim()));
+
+       base_sol.set(jl_call3(jl_solve_base_case_recourse_sparse, opt_data.get(), base_sol.get(), ptr_rderivatives));
+
+       save_jl_array(jl_save_array, "gradient", (jl_value_t*)jl_grad);
+     //  save_jl_array(jl_save_array, "hessian", (jl_value_t*)jl_hess);
+
+       save_jl_array("hessian", sparse_hessian.get(), iter);
+
+       JL_GC_POP();
+       free_arrays(_rows, _cols, _vals);
+     }
+
     // Solve base optimization problem
     void solve_base_case_with_recourse(double *grad, double *hess) 
     {
@@ -301,6 +402,8 @@ public:
            solve_base();
         else
            solve_base_case_with_recourse(grad, hess);
+           //test_solve_base_case_with_recourse(grad, hess);
+       
 
        std::cout<<" --- BASE CASE SOLVED! --- \n";
        try {

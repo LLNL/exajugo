@@ -343,7 +343,6 @@ end
 function array_to_struct_generic(prob, arr, T::Type, array_lengths)
     field_types = fieldtypes(T)
     field_names = fieldnames(T)
-
     
     # Prepare to extract fields from the array
     fields = []
@@ -513,6 +512,7 @@ function get_recourse_derivatives_ref(grad, hess)
 end
 
 
+#grad_multiplier and hess_multiplier are uaed for debugging
 struct RecourseDerivatives
 
     gradient::Vector{Float64}
@@ -535,13 +535,125 @@ function get_recourse_derivatives(grad, hess, _len)
     return Ref(RecourseDerivatives(grad, hess, _len))
 end
 
+struct SparseMatrixIndexWrap
+
+    rows::Vector{Int64}
+    cols::Vector{Int64}
+
+    function SparseMatrixIndexWrap(_rows, _cols, _len) 
+
+        rows_copy = Vector{Int64}(undef, _len)
+        cols_copy = Vector{Int64}(undef, _len)
+
+        rows_copy .= _rows[1:_len]
+        cols_copy .= _cols[1:_len]
+
+        new(rows_copy, cols_copy)
+  
+    end
+end
+
+function get_sparse_matrix_index_wrap(rows, cols, _len)
+    println("\n get_sparse_matrix_index_wrap \n")
+        flush(stdout)
+
+    GETSP= Ref(SparseMatrixIndexWrap(rows, cols, _len))
+    println(" == ")
+        flush(stdout)
+
+    return GETSP
+end
+
+
+struct SparseMatrixWrap
+
+    indices::Ref{SparseMatrixIndexWrap}
+    values::Vector{Float64}
+
+    function SparseMatrixWrap(ix_ref::Ref{SparseMatrixIndexWrap}, _values, _len) 
+
+        values_copy = Vector{Float64}(undef, _len)
+        values_copy .= _values[1:_len]
+
+        new(ix_ref, values_copy)
+  
+    end
+end
+
+
+function get_sparse_matrix_wrap(ix_ref, _values, _len)
+    return Ref(SparseMatrixWrap(ix_ref, _values, _len))
+
+end
+
+
+struct RecourseSparseHessian
+    gradient::Ref{Vector{Float64}}
+    hessian::Ref{SparseMatrixWrap}
+
+    function RecourseSparseHessian(_grad, hess::Ref{SparseMatrixWrap}, _len) 
+
+        grad_copy = Vector{Float64}(undef, _len)
+        grad_copy .= _grad[1:_len]
+
+        new(grad_copy, hess)
+  
+    end
+
+end
+
+
+function get_recourse_sparse(grad, hess, _len)
+
+    return Ref(RecourseSparseHessian(grad, hess, _len))
+end
+
+
+
 using LinearAlgebra
+
+
+function save_sparse_matrix(file_path, sparse_matrix, _iter)
+   
+    save_opt_sparse_data(file_path, sparse_matrix[], _iter)
+
+end
+
+
+using CSV, DataFrames, Printf
+
+function save_opt_sparse_data(base_file_path::AbstractString, sparse_matrix::SparseMatrixWrap, iteration::Int)
+    indices = sparse_matrix.indices[]
+    rows = indices.rows
+    cols = indices.cols
+    vals = sparse_matrix.values
+
+    n = length(vals)
+    @assert length(rows) == n
+    @assert length(cols) == n
+
+    # Prepare DataFrame with id, row, col, value (5 decimals)
+    new_rows = DataFrame(
+        id = 0:(n-1),
+        row = rows,
+        col = cols,
+        value = [@sprintf("%.5f", v) for v in vals]
+    )
+
+    # Build the new filename with iteration number
+    parts = Base.splitext(base_file_path)
+    new_file = string(parts[1], "_iter", iteration, parts[2])
+
+    CSV.write(new_file, new_rows)
+end
+
 
 function save_array(file_path, ptr, grad)
    
     save_opt_data(file_path, ("norm"=>norm(grad)), [round(x, digits=5) for x in grad])
 
 end
+
 
 function save_cont_solution(file_path, ptr, prev_sol)
 
@@ -552,9 +664,9 @@ function save_cont_solution(file_path, ptr, prev_sol)
     dir = dirname(file_path)
     base = basename(file_path)
 
-stem = splitext(base)[1]  # "solution_10"
-number = split(stem, "_")[end]  # "10"
-new_name = "iterations_$(number).csv" 
+    stem = splitext(base)[1]  # "solution_10"
+    number = split(stem, "_")[end]  # "10"
+    new_name = "iterations_$(number).csv" 
 
     new_path = joinpath(dir, new_name)
 
@@ -576,8 +688,6 @@ function save_solution(file_path, ptr, prev_sol)
 # Given file_path
     dir = dirname(file_path)
     base = basename(file_path)
-#    stem = splitext(base)[1]
- #   new_name = string(stem, "_iterations.csv")
     new_name = "iterations.csv" 
     new_path = joinpath(dir, new_name)
 
@@ -679,8 +789,39 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
 
 # Create n scalar functions for each calculation
    recourse_fx = [ (x) -> begin (1/2)*x^2*H[i] + (G[i] - H[i]*x)*x end for i in 1:n ]
-   recourse_gx = [ (argG, x) -> begin argG[1] = G[i]*x end for i in 1:n ]
-   recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
+   recourse_gx = [ (argG, x) -> begin argG[i] = G[i]*x end for i in 1:n ]
+   recourse_Hx = [ (argH, x) -> begin argH[i] = H[i]; end for i in 1:n ]
+
+   SOLUTION_WITH_RECOURSE=
+              Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 
+              recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
+              previous_solution=prev_sol[])[1])
+
+   # allocated_bytes = Base.gc_bytes() 
+   #println("SOLUTION_WITH_RECOURSE Memory allocated: ", allocated_bytes, " bytes")
+
+   return SOLUTION_WITH_RECOURSE
+end
+
+function solve_base_case_recourse_sparse(ptr, prev_sol, ptr_rderivaties)
+
+   global start_time
+   start_time = time()
+
+   G = ptr_rderivaties[].gradient
+   ptr_hess = ptr_rderivaties[].hessian
+   idex_arrays = ptr_hess[].indices
+
+   rows = idex_arrays[].rows
+   cols = idex_arrays[].cols
+   H = ptr_hess[].values
+
+   n = length(G)
+
+# Create n scalar functions for each calculation
+   recourse_fx = [ (x) -> begin (1/2)*x^2*H[i] + (G[i] - H[i]*x)*x end for i in 1:n ]
+   recourse_gx = [ (argG, x) -> begin argG[i] = G[i]*x end for i in 1:n ]
+   recourse_Hx = [ (argH, x) -> begin argH[i] = H[i]; end for i in 1:n ]
 
    SOLUTION_WITH_RECOURSE=
               Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 
