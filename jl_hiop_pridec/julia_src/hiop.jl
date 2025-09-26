@@ -425,8 +425,8 @@ end
 
 function getObjective(ptr)
 
+   #TODO: return the "whole" objective. see TODO in SCACOPFSubproblems.jl
    return ptr[].base_cost
-
 end
 
 function getDim(ptr)

@@ -308,6 +308,13 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost   
 
+    # when solving the master, we need the total objective at the optimum
+    
+    #quick fix: save it in base_cost, as this is currently sent to HiOp PriDec
+    base_cost = JuMP.objective_value(m)
+    
+    #TODO: add the optimal objective in BaseCaseSolution
+
     solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                 convert(Vector{Float64}, JuMP.value.(b_s)),
                                 JuMP.value.(p_g), JuMP.value.(q_g),
