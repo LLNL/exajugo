@@ -83,8 +83,11 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
   if (env_max_iter) 
   {
     max_iter = std::atoi(env_max_iter);
-    }
+  }
 
+  std::cout << "jl_PriDecDriver: output dir=[" << outputDir << "]" << std::endl;
+  std::cout << "jl_PriDecDriver: max_iter=[" << max_iter << "]" << std::endl;
+  
   // JL_Interface constructor: base system and maximum number of iterations
   JL_Interface prob_data(outputDir, instance, max_iter);
 

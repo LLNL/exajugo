@@ -782,10 +782,18 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
 
    n = length(G)
 
-# Create n scalar functions for each calculation
+   # Add the quadratic approximation to the master problem, namely
+   # q(x) = G'*(x-xk) + 0.5* (x-xk)'*H*(x-xk), where xk is the previous master solution
+   # \nabla_q (x) = G + H(x-xk)
+   # Hessian_q(x) = H
+
+   # CP? I do not know how to get xk: looks like it is in prev_sol
+
+   # Create n scalar functions for each calculation
    recourse_fx = [ (x) -> begin (1/2)*x^2*H[i] + (G[i] - H[i]*x)*x end for i in 1:n ]
    recourse_gx = [ (argG, x) -> begin argG[i] = G[i]*x end for i in 1:n ]
    recourse_Hx = [ (argH, x) -> begin argH[i] = H[i]; end for i in 1:n ]
+
 
    SOLUTION_WITH_RECOURSE=
               Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 

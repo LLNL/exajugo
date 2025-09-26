@@ -374,7 +374,7 @@ public:
        jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
        jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
 
-// this is necessary to root pointers tp protect from Julia GC
+       // this is necessary to protect pointers from Julia GC
        JL_GC_PUSH2(&jl_grad, &jl_hess);
 
        jl_value_t* ptr_rderivatives = 
