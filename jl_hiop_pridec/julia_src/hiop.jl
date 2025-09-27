@@ -787,13 +787,15 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
    # \nabla_q (x) = G + H(x-xk)
    # Hessian_q(x) = H
 
+   xk = prev_sol[].p_g  #generation
+
    # CP? I do not know how to get xk: looks like it is in prev_sol. 
 
    # Create n scalar functions for each calculation
 
    ## the index 1 (in argH[1]) is because there each variable is entered separately because of the hessian
-   recourse_fx = [ (x) -> begin (1/2)*x^2*H[i] + (G[i] - H[i]*x)*x end for i in 1:n ]
-   recourse_gx = [ (argG, x) -> begin argG[1] = G[i]*x end for i in 1:n ]
+   recourse_fx = [ (x) -> begin  G[i]*(x-xk[i]) + 0.5*(x-xk[i])'*H[i]*(x-xk[i]) end for i in 1:n ]
+   recourse_gx = [ (argG, x) -> begin argG[1] = G[i] + H[i]*(x-xk[i]) end for i in 1:n ]
    recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
 
 
@@ -823,9 +825,13 @@ function solve_base_case_recourse_sparse(ptr, prev_sol, ptr_rderivaties)
 
    n = length(G)
 
-# Create n scalar functions for each calculation
-   recourse_fx = [ (x) -> begin (1/2)*x^2*H[i] + (G[i] - H[i]*x)*x end for i in 1:n ]
-   recourse_gx = [ (argG, x) -> begin argG[1] = G[i]*x end for i in 1:n ]
+   xk = prev_sol[].p_g  #generation
+
+   # Create n scalar functions for each calculation
+
+   ## the index 1 (in argH[1]) is because there each variable is entered separately because of the hessian
+   recourse_fx = [ (x) -> begin  G[i]*(x-xk[i]) + 0.5*(x-xk[i])'*H[i]*(x-xk[i]) end for i in 1:n ]
+   recourse_gx = [ (argG, x) -> begin argG[1] = G[i] + H[i]*(x-xk[i]) end for i in 1:n ]
    recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
 
    SOLUTION_WITH_RECOURSE=
