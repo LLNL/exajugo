@@ -96,11 +96,10 @@ Script templates:
          If you press ENTER, then the script will automatically set the # of processors = # of contingencies+1
 
       IMPORTANT: if you set the environment variable NTASKS, its value will be used as the # of processors.
+
       Other environment variables:
          - EXECUTE: if set to "yes", "true" or 1, it will execute the script without asking to press any key;
          - PRN_SCRIPT: if set to "no", "false" or 0, it will NOT print on the screen the script generated.
-
-
 
    4) After the execution, the generated script will be shown in the screen. If you wish to submit it, press ENTER. Otherwise, press any key. In case you pressed any key OTHER THAN ENTER, you will see this:
 
@@ -112,6 +111,12 @@ Script templates:
 
       sbatch output/scripts/sub_<case>.sbatch
 
+   6) Selecting contingencies
+
+      if you wish to consider only a subset of the contingencies, use the environment variable CONTINGENCY_INDICES:
+         Example:   
+            export CONTINGENCY_INDICES=3,1,4,11
+            If you execute the above, the code will consider only select the coningencies with index 3, 1, 4 and 11.
 
 ## Execution (interactive pdebug node allocation)
 

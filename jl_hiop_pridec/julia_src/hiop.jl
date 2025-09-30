@@ -890,20 +890,34 @@ end
 
 function get_number_of_contingencies(case)
 
-    return number_of_contingencies(load_ACOPF(get_instance_files(case)...))
+   # return get_cont_indices(load_ACOPF(get_instance_files(case)...))
+    return number_of_contingencies(get_cont_indices(load_ACOPF(get_instance_files(case)...)))
 
 end
 
 
-function number_of_contingencies(ptr)
+#function number_of_contingencies(ptr)
+#
+#   return length(ptr[].cont_labels)
+#
+#end
+
+function number_of_columns(ptr)
+
+   return nrow(ptr[].G)
+
+end
+
+
+function total_number_of_contingencies(ptr)
 
    return length(ptr[].cont_labels)
 
 end
 
-function number_of_columns(ptr)
+function number_of_contingencies(ptr)
 
-   return nrow(ptr[].G)
+   return length(ptr[])
 
 end
 
@@ -921,4 +935,32 @@ function solve_contingency_pridec(ptr, i::Int64, ptr_basesol)
 
 end
 
+
+function ret_cont_index(ptr, i)
+
+    return ptr[][i+1]
+
+end
+
+
+function get_cont_indices(ptr)
+    n = total_number_of_contingencies(ptr)
+
+    if haskey(ENV, "CONTINGENCY_INDICES")
+        cont_str = ENV["CONTINGENCY_INDICES"]
+        try
+            vals = parse.(Int, split(cont_str, ","))
+            if any(x -> x > n || x < 1, vals)
+                println("Some indices in CONTINGENCY_INDICES are out of bounds (must be between 1 and $n), using default 1:$n")
+                return Ref(collect(1:n))
+            end
+            return Ref(vals)
+        catch
+            println("Could not parse CONTINGENCY_INDICES, using default 1:$n")
+        end
+    else
+        println("CONTINGENCY_INDICES not set, using default 1:$n")
+    end
+    return Ref(collect(1:n))
+end
 

@@ -67,6 +67,8 @@ jl_function_t* jl_define_array_lengths;
 
 jl_function_t* jl_get_data_ptr;
 jl_function_t* jl_hold_pointer;
+jl_function_t* jl_get_cont_indices;
+jl_function_t* jl_ret_cont_index;
 
 
 void include_jl_functions()
@@ -131,6 +133,8 @@ void include_jl_functions()
     jl_define_array_lengths = jl_get_function(jl_main_module, "define_array_lengths");
 
     jl_hold_pointer = jl_get_function(jl_main_module, "hold_pointer");
+    jl_get_cont_indices = jl_get_function(jl_main_module, "get_cont_indices");
+    jl_ret_cont_index = jl_get_function(jl_main_module, "ret_cont_index");
 
 }
 
@@ -166,6 +170,7 @@ JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst,
     init_MPI(); // Initialize MPI
 
     opt_data.set(read_data());
+    cont_indices.set(jl_call1(jl_get_cont_indices, opt_data.get()));
 
     fieldsizes.set(get_field_data()); 
     size_buffer = jl_unbox_int64(jl_call1(jl_full_solution_dim, fieldsizes.get()));

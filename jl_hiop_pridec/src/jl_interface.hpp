@@ -71,6 +71,8 @@ extern jl_function_t* jl_define_array_lengths;
 
 extern jl_function_t* jl_get_data_ptr;
 extern jl_function_t* jl_hold_pointer;
+extern jl_function_t* jl_get_cont_indices;
+extern jl_function_t* jl_ret_cont_index;
 
 
 void include_jl_functions();
@@ -135,6 +137,7 @@ protected:
     double hess_multiplier;
     int iter;
 
+    JL_Pointer cont_indices;
     JL_Pointer sparse_index;
     JL_Pointer sparse_hessian;
 
@@ -231,7 +234,8 @@ public:
     // Solve contingency problem
     void solve_contingency_prob(int i)
     {
-       int cont_id = i+1;
+//       int cont_id = i+1;
+       int cont_id = jl_unbox_int64(jl_call2(jl_ret_cont_index, cont_indices.get(), jl_box_int64(i))); 
 
        cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get()));
        save_jl_array(jl_save_cont_solution, "solution_"+std::to_string(cont_id), cont_sol.get(), cont_id);
@@ -261,7 +265,8 @@ public:
        jl_call2(jl_getSolution, base_sol.get(), (jl_value_t*)jl_x);
     }
 
-    int64_t number_of_contingencies() const { return jl_unbox_int64(jl_call1(jl_number_of_contingencies, opt_data.get())); }
+//    int64_t number_of_contingencies() const { return jl_unbox_int64(jl_call1(jl_number_of_contingencies, opt_data.get())); }
+    int64_t number_of_contingencies() const { return jl_unbox_int64(jl_call1(jl_number_of_contingencies, cont_indices.get())); }
 
     int64_t number_of_columns() const 
     {
