@@ -53,9 +53,7 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
 bool JL_PriDecMasterProblem::eval_f_rterm(size_type idx, const int& n, const double* x, double& rval)
 {
 
-   std::cout<<" eval_f_rterm "<<idx<<"\n\n";
    jl_prob.solve_contingency_recourse(idx, rval); 
-   std::cout<<" solve_contingency_recourse "<<idx<<"\n\n";
 
    return true;
 };
@@ -63,13 +61,10 @@ bool JL_PriDecMasterProblem::eval_f_rterm(size_type idx, const int& n, const dou
 // x is handled by primalDecomp to be the correct coupled x
 bool JL_PriDecMasterProblem::eval_grad_rterm(size_type idx, const int& n, double* x, hiopVector& grad)
 {
-   std::cout<<" eval_grad_rterm "<<idx<<"\n\n";
-
   assert(static_cast<int>(nc_) == n);
   double* grad_vec = grad.local_data();
 
    jl_prob.getGradient(grad_vec);
-   std::cout<<" getGradient "<<idx<<"\n\n";
 
   return true;
 };
