@@ -211,7 +211,7 @@ public:
     jl_value_t* receive_MPI_data(int tag = 0, bool block = true);
 
     // Send base solution
-    void send_solution() {  if (nproc>1) send_MPI_data(base_sol.get(), 99);  }
+    void send_solution() {  if (nproc>1) send_MPI_data(base_sol.get(), 99, false);  }
 
     // Receive base solution
     void receive_solution()  { if (nproc>1) base_sol.set(receive_MPI_data(99));  }
