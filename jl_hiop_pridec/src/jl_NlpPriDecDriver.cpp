@@ -53,10 +53,14 @@ std::string sep(1, preferred_separator); // convert char to string
 
 std::string defoutput = "output"+sep+"rank_" + std::to_string(rank)+sep;
 // Assume 'rank' is already defined as an int
-std::string outputDir = std::getenv("OUTPUT_ITER") ? std::getenv("OUTPUT_ITER"): defoutput;
+
+const char* env_output = std::getenv("OUTPUT_ITER");
+std::string outputDir = env_output ? std::string(env_output) : defoutput;
+
 if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.back() != '\\') {
     outputDir += preferred_separator;
 }
+
 
 // Create the directory (including parent directories if needed)
 //fs::create_directories(outputDir);
@@ -88,6 +92,11 @@ if (!outputDir.empty() && outputDir.back() != preferred_separator  && outputDir.
   std::cout << "jl_PriDecDriver: output dir=[" << outputDir << "]" << std::endl;
   std::cout << "jl_PriDecDriver: max_iter=[" << max_iter << "]" << std::endl;
   
+  const char* env_output2 = std::getenv("OUTPUT_ITER");
+const char* env_instance = std::getenv("INSTANCE"); // or however you set 'instance'
+
+assert(!outputDir.empty());
+assert(!instance.empty());
   // JL_Interface constructor: base system and maximum number of iterations
   JL_Interface prob_data(outputDir, instance, max_iter);
 

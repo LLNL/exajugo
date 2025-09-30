@@ -400,7 +400,8 @@ function define_array_lengths(prob::Ref{SCACOPFdata})
         :p_g => size(prob[].G, 1),  # Same size as the number of rows in `prob.N`
         :q_g => size(prob[].G, 1),  # Same size as the number of rows in `prob.N`
         :base_cost => 1,  # Assuming scalar size for `base_cost`
-        :recourse_cost => 1  # Assuming scalar size for `recourse_cost`
+        :recourse_cost => 1,  # Assuming scalar size for `recourse_cost`
+        :total_objective => 1  # Assuming scalar size for `recourse_cost`
     ))
 
     return FIELD_SIZES_DICT
@@ -426,7 +427,7 @@ end
 function getObjective(ptr)
 
    #TODO: return the "whole" objective. see TODO in SCACOPFSubproblems.jl
-   return ptr[].base_cost
+   return ptr[].total_objective
 end
 
 function getDim(ptr)

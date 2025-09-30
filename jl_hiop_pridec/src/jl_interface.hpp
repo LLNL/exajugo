@@ -163,7 +163,14 @@ protected:
     jl_value_t* read_data() 
     {
 
-       std::string exajugo_path = std::getenv("PATH_TO_INSTANCES");
+    const char* env_path = std::getenv("PATH_TO_INSTANCES");
+    assert(env_path != nullptr); // This will catch unset env variable
+    std::string exajugo_path(env_path);
+
+       assert(!exajugo_path.empty());
+       assert(!instance.empty());
+       assert(preferred_separator != '\0');
+
        //std::string example_path = exajugo_path+instance+fs::path::preferred_separator;
        std::string example_path = exajugo_path+instance+preferred_separator;
 
@@ -204,10 +211,10 @@ public:
     jl_value_t* receive_MPI_data(int tag = 0, bool block = true);
 
     // Send base solution
-    void send_solution() {  send_MPI_data(base_sol.get(), 99);  }
+    void send_solution() {  if (nproc>1) send_MPI_data(base_sol.get(), 99);  }
 
     // Receive base solution
-    void receive_solution()  {  base_sol.set(receive_MPI_data(99));  }
+    void receive_solution()  { if (nproc>1) base_sol.set(receive_MPI_data(99));  }
 
     void getCost(double& rval) { rval =  jl_unbox_float64(jl_call1(jl_getCost, cont_sol.get())); }
 
@@ -218,6 +225,7 @@ public:
 
         solve_contingency_prob(i);  //cont_sol
         getCost(rval);
+
     }
 
     // Solve contingency problem
@@ -226,7 +234,6 @@ public:
        int cont_id = i+1;
 
        cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get()));
-
        save_jl_array(jl_save_cont_solution, "solution_"+std::to_string(cont_id), cont_sol.get(), cont_id);
 
     }

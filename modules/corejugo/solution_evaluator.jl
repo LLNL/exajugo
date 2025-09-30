@@ -26,7 +26,8 @@ function get_full_initial_solution(psd::SCACOPFdata;
                             opt::Union{Nothing, MOI.OptimizerWithAttributes}=nothing)
     sol = BasecaseSolution(psd, psd.N[!,:v0], psd.N[!,:theta0],
                            psd.SSh[!,:b0], psd.G[!,:p0], psd.G[!,:q0],
-                           0.0, 0.0)
+                           0.0, 0.0, 0.0) #added total_obj
+  
     return sol.v_n, sol.theta_n, sol.b_s, sol.p_g, sol.q_g,
             get_full_solution(psd, sol, opt = opt)...
 end

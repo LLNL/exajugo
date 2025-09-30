@@ -180,24 +180,26 @@ mutable struct BasecaseSolution <: SubproblemSolution
     # objective information
     base_cost::Union{Float64, Nothing}
     recourse_cost::Union{Float64, Nothing}
-    
+    total_objective::Union{Float64, Nothing}
+
     # constructor
     function BasecaseSolution(psd::SCACOPFdata, 
                               v_n::Vector{Float64}, theta_n::Vector{Float64},
                               b_s::Vector{Float64},
                               p_g::Vector{Float64}, q_g::Vector{Float64},
                               base_cost::Union{Float64, Nothing},
-                              recourse_cost::Union{Float64, Nothing})
+                              recourse_cost::Union{Float64, Nothing},
+                              total_objective::Union{Float64, Nothing}) #added total obj
         check_solution_dimensions(psd, v_n, theta_n, b_s, p_g, q_g)
         return new(hash(psd), v_n, theta_n, b_s, p_g, q_g, base_cost,
-                   recourse_cost)
+                   recourse_cost, total_objective)
     end
     
     # basic constructor (allocate to then fill)
     function BasecaseSolution(psd::SCACOPFdata)
         vec(field::Symbol) = Vector{Float64}(undef, nrow(getfield(psd, field)))
         return new(hash(psd), vec(:N), vec(:N), vec(:SSh), vec(:G), vec(:G),
-                   nothing, nothing)
+                   nothing, nothing, nothing)
     end
 
 end
