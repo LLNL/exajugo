@@ -57,7 +57,7 @@ struct SCACOPFdata
         else
             RefBus = 1
         end
-        Con_RefBus = make_contingency_RefBuses(contingencies, G, L, T, G_Nidx)
+        Con_RefBus = make_contingency_RefBuses(contingencies, G, N, L, T, G_Nidx)
 
         if G[1,:CTYP] == 1
             # Not required with polynomial cost function
@@ -148,8 +148,9 @@ end
 
 # function to create the set of reference buses for each contingency
 
-function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, L::DataFrame,
-                                    T::DataFrame, G_Nidx::Vector{Int})::Vector{Vector{Int}}
+function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, N::DataFrame,
+                                    L::DataFrame, T::DataFrame, 
+                                    G_Nidx::Vector{Int})::Vector{Vector{Int}}
     # Initialize a vector of integer vectors to store the reference bus for each contingency
     Refbuses = Vector{Vector{Int}}(undef, size(contingencies)[1])
 
@@ -162,7 +163,7 @@ function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, L::Da
 
         # Create a new graph representing the network topology.
         # Number of vertices = total number of lines + total number of transformers.
-        g = Graph(length(L.From) + length(T.From))
+        g = Graph(length(N.Bus))
 
         # ---------------------------
         # Add transmission line edges
@@ -184,7 +185,7 @@ function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, L::Da
         # Each contingency may remove one or more lines (transmission or transformer)
         for i = 1:length(contingencies.CON[k])
             # Ensure the contingency type has the field :FromBus (e.g., TransmissionContingency)
-            if hasproperty(contingencies.CON[k][1], :FromBus)
+            if hasproperty(contingencies.CON[k][i], :FromBus)
                 # Remove the edge between the specified buses to simulate the line outage
                 rem_edge!(g, contingencies.CON[k][i].FromBus, contingencies.CON[k][i].ToBus)
             end
