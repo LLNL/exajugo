@@ -30,6 +30,7 @@ struct SCACOPFdata
     Gn::Vector{Vector{Int}}
     K_outidx::Vector{Int}
     RefBus::Int
+    Con_RefBus::Vector{Vector{Int}}
     
     # generator cost in epigraph form
     G_epicost_slope::Vector{Vector{Float64}}
@@ -56,6 +57,8 @@ struct SCACOPFdata
         else
             RefBus = 1
         end
+        Con_RefBus = make_contingency_RefBuses(contingencies, G, L, T, G_Nidx)
+
         if G[1,:CTYP] == 1
             # Not required with polynomial cost function
             G_epicost_slope = Vector{Vector{Float64}}[]
@@ -76,7 +79,7 @@ struct SCACOPFdata
         cont_labels = contingencies[!,:LABEL]
         return new(MVAbase, N, L, T, SSh, G, K, P, DELTA,
                    L_Nidx, T_Nidx, SSh_Nidx, G_Nidx, Lidxn, Lin, Tidxn,
-                   Tin, SShn, Gn, K_outidx, RefBus,
+                   Tin, SShn, Gn, K_outidx, RefBus, Con_RefBus,
                    G_epicost_slope, G_epicost_intercept, a, b,
                    gens_identifiers, cont_labels)
     end
@@ -142,6 +145,87 @@ struct SCACOPFdata
     end
     
 end
+
+# function to create the set of reference buses for each contingency
+
+function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, L::DataFrame,
+                                    T::DataFrame, G_Nidx::Vector{Int})::Vector{Vector{Int}}
+    # Initialize a vector of integer vectors to store the reference bus for each contingency
+    Refbuses = Vector{Vector{Int}}(undef, size(contingencies)[1])
+
+    # Get the list of unique generator bus IDs from the power system data
+    gen_bus_id = unique(G.Bus)
+
+    # Loop through each contingency case
+    for k = 1:length(contingencies.CON)
+        # println("Contingency ", k)
+
+        # Create a new graph representing the network topology.
+        # Number of vertices = total number of lines + total number of transformers.
+        g = Graph(length(L.From) + length(T.From))
+
+        # ---------------------------
+        # Add transmission line edges
+        # ---------------------------
+        for i = 1:length(L.From)
+            add_edge!(g, L.From[i], L.To[i])
+        end
+
+        # ---------------------------
+        # Add transformer connections
+        # ---------------------------
+        for i = 1:length(T.From)
+            add_edge!(g, T.From[i], T.To[i])
+        end
+
+        # ---------------------------
+        # Remove contingency lines
+        # ---------------------------
+        # Each contingency may remove one or more lines (transmission or transformer)
+        for i = 1:length(contingencies.CON[k])
+            # Ensure the contingency type has the field :FromBus (e.g., TransmissionContingency)
+            if hasproperty(contingencies.CON[k][1], :FromBus)
+                # Remove the edge between the specified buses to simulate the line outage
+                rem_edge!(g, contingencies.CON[k][i].FromBus, contingencies.CON[k][i].ToBus)
+            end
+        end
+
+        # ---------------------------
+        # Identify islands (connected components)
+        # ---------------------------
+        # Each connected component corresponds to an electrical island after the contingency
+        islands = connected_components(g)
+        # display(islands)    
+
+        # Initialize the reference bus list for this contingency
+        Refbuses[k] = Int[]
+
+        # Loop through each island to determine a reference bus
+        for is = 1:length(islands)
+            # println("Island ", is)
+
+            # Find which generator buses belong to this island
+            island_gens = intersect(islands[is], gen_bus_id)
+
+            # If no generators exist in this island, choose the first bus as reference
+            if length(island_gens) == 0
+                push!(Refbuses[k], islands[is][1])
+            else
+                # Otherwise, find the generator in this island with the highest 'Pub' (likely active power)
+                # 1. Find indices in G.Bus corresponding to these generator buses
+                all_indices = vcat([findall(x -> x == val, G.Bus) for val in island_gens]...)
+
+                # 2. Push the bus index (mapped through G_Nidx) with the maximum Pub value
+                push!(Refbuses[k], G_Nidx[all_indices[argmax(G[all_indices, :Pub])]])
+            end
+        end
+
+        # Display the reference bus list so far (optional debugging output)
+        # display(Refbuses)
+    end
+    return Refbuses
+end
+
 
 # function to check solution dimensions
 
