@@ -161,7 +161,9 @@ JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst,
     include_jl_functions(); // Load Julia functions
 
     init_MPI(); // Initialize MPI
-    opt_data.set(read_data());
+    jl_value_t* od = read_data();
+    assert(od);
+    opt_data.set(od);
  
     fieldsizes.set(get_field_data()); 
     size_buffer = jl_unbox_int64(jl_call1(jl_full_solution_dim, fieldsizes.get()));

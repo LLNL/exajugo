@@ -167,14 +167,20 @@ protected:
        //std::string example_path = exajugo_path+instance+fs::path::preferred_separator;
        std::string example_path = exajugo_path+instance+preferred_separator;
 
+       std::cout << "Example path: " << example_path << std::endl;
+       std::cout << "Instance: " << instance << std::endl;
        jl_value_t* jl_opt_instance = jl_cstr_to_string(instance.c_str());
-
+       assert(jl_opt_instance);
        return jl_call1(jl_load_ACOPF_instance, jl_opt_instance);
-       }
+    }
 
     jl_value_t* get_field_data()
     {
-        return jl_call1(jl_define_array_lengths, opt_data.get());
+      jl_value_t* od = opt_data.get();
+      assert(od);
+      jl_value_t* ret = jl_call1(jl_define_array_lengths, od);
+      assert(ret);
+      return ret;
     }
 
 public:
@@ -369,19 +375,25 @@ public:
      }
 
     // Solve base optimization problem
-    void solve_base_case_with_recourse(double *grad, double *hess) 
+    void solve_base_case_with_recourse(const double& f, double *grad, double *hess) 
     {
        jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
        jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
-
+       jl_value_t* jl_func = jl_box_float64(f);
        // this is necessary to protect pointers from Julia GC
-       JL_GC_PUSH2(&jl_grad, &jl_hess);
+       JL_GC_PUSH3(&jl_func, &jl_grad, &jl_hess);
 
        jl_value_t* ptr_rderivatives = 
-          jl_call3(jl_get_recourse_derivatives, jl_grad, jl_hess, jl_box_int64(getDim()));
+         jl_call3(jl_get_recourse_derivatives, jl_func, jl_grad, jl_hess);
 
-       base_sol.set(jl_call3(jl_solve_base_case_recourse, opt_data.get(), base_sol.get(), ptr_rderivatives));
-
+       assert(ptr_rderivatives);
+       assert(opt_data.get());
+       assert(base_sol.get());
+       jl_value_t* ret_base_sol = jl_call3(jl_solve_base_case_recourse, opt_data.get(), base_sol.get(), ptr_rderivatives);
+       assert(ret_base_sol && "failure of calling jl_solve_base_case_recourse");
+       
+       base_sol.set(ret_base_sol);
+       
        save_jl_array(jl_save_array, "gradient", (jl_value_t*)jl_grad);
        save_jl_array(jl_save_array, "hessian", (jl_value_t*)jl_hess);
 
@@ -396,12 +408,12 @@ public:
     
      bool success() { return base_sol.get() != nullptr; }
 
-     void solve_base(double *grad, double *hess) 
+     void solve_base(const double& f, double *grad, double *hess) 
      {
         if (base_sol.get() == nullptr)
            solve_base();
         else
-           solve_base_case_with_recourse(grad, hess);
+          solve_base_case_with_recourse(f, grad, hess);
            //test_solve_base_case_with_recourse(grad, hess);
        
 
