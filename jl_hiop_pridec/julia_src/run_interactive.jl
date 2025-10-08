@@ -90,11 +90,7 @@ open(output_file, "w") do io
     write(io, output)
 end
 
-
-println(" Script generated:")
-println("")
-println(output)
-println("")
+print_generated_script(output)
 
 
 ENV["BATCH_FILE"]=output_file

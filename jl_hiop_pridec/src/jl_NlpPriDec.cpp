@@ -59,7 +59,6 @@ bool JL_PriDecMasterProblem::eval_f_rterm(size_type idx, const int& n, const dou
 // x is handled by primalDecomp to be the correct coupled x
 bool JL_PriDecMasterProblem::eval_grad_rterm(size_type idx, const int& n, double* x, hiopVector& grad)
 {
-
   assert(static_cast<int>(nc_) == n);
   double* grad_vec = grad.local_data();
 

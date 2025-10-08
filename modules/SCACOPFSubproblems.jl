@@ -138,7 +138,7 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                             convert(Vector{Float64}, JuMP.value.(b_s)),
                             JuMP.value.(p_g), JuMP.value.(q_g),
-                            0.0, 0.0),
+                            0.0, 0.0, 0.0),
            summary
     
 end
@@ -307,18 +307,15 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     recourse_cost = JuMP.objective_value(m) - base_cost   
 
     # when solving the master, we need the total objective at the optimum
-    
-    #quick fix: save it in base_cost, as this is currently sent to HiOp PriDec
-    total_obj  = JuMP.objective_value(m)
+    total_objective  = JuMP.objective_value(m)
 
     rec_quadr_approx = JuMP.value(contingency_penalty)
-    println("Obj for PriDec: objective=", total_obj, "  base_cost=", base_cost, "  recourse=", recourse_cost, " recourse quadr term=", rec_quadr_approx)
-    base_cost = total_obj
+    println("Obj for PriDec: objective=", total_objective, "  base_cost=", base_cost, "  recourse=", recourse_cost, " recourse quadr term=", rec_quadr_approx)
 
     solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                 convert(Vector{Float64}, JuMP.value.(b_s)),
                                 JuMP.value.(p_g), JuMP.value.(q_g),
-                                base_cost, recourse_cost)
+                                base_cost, recourse_cost, total_objective)
 
     # write the information about the system
     if output_dir !== nothing
@@ -687,12 +684,13 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
     base_cost = JuMP.value(production_cost) +
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
+    total_objective = JuMP.objective_value(m)
 
     # Intial construction of the SCACOPF solution
     solution = SCACOPFsolution(psd, BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                                     convert(Vector{Float64}, JuMP.value.(b_s)),
                                                     JuMP.value.(p_g), JuMP.value.(q_g),
-                                                    base_cost, recourse_cost))
+                                                    base_cost, recourse_cost, total_objective))
 
     # Add contingency solutions                                                        
     for k = 1:nrow(psd.K)

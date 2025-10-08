@@ -67,11 +67,17 @@ jl_function_t* jl_define_array_lengths;
 
 jl_function_t* jl_get_data_ptr;
 jl_function_t* jl_hold_pointer;
+jl_function_t* jl_get_cont_indices;
+jl_function_t* jl_ret_cont_index;
 
 
 void include_jl_functions()
 {
     const char* julia_file_path =std::getenv("JULIA_SRC_FILE");
+    if (julia_file_path == nullptr) {
+          julia_file_path = "julia_src/hiop.jl";
+     }
+    assert(julia_file_path != nullptr); // This will catch unset env variable
 
     std::string command = "include(\"" + std::string(julia_file_path) + "\")"; 
 
@@ -127,6 +133,8 @@ void include_jl_functions()
     jl_define_array_lengths = jl_get_function(jl_main_module, "define_array_lengths");
 
     jl_hold_pointer = jl_get_function(jl_main_module, "hold_pointer");
+    jl_get_cont_indices = jl_get_function(jl_main_module, "get_cont_indices");
+    jl_ret_cont_index = jl_get_function(jl_main_module, "ret_cont_index");
 
 }
 
@@ -159,12 +167,12 @@ JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst,
      grad_multiplier(1.0), hess_multiplier(1.0)
 {
     include_jl_functions(); // Load Julia functions
-
     init_MPI(); // Initialize MPI
+
     jl_value_t* od = read_data();
     assert(od);
-    opt_data.set(od);
- 
+    cont_indices.set(jl_call1(jl_get_cont_indices, opt_data.get()));
+
     fieldsizes.set(get_field_data()); 
     size_buffer = jl_unbox_int64(jl_call1(jl_full_solution_dim, fieldsizes.get()));
 }
@@ -206,6 +214,7 @@ void JL_Interface::send_MPI_data(jl_value_t* _dt_ptr, int tag, bool block)
 // Receive master solution via MPI
 jl_value_t* JL_Interface::receive_MPI_data(int tag, bool block)
 {
+
     MPI_Status status;
     MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
@@ -217,6 +226,7 @@ jl_value_t* JL_Interface::receive_MPI_data(int tag, bool block)
     MPI_Recv(data_buffer, data_size, MPI_DOUBLE, status.MPI_SOURCE, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
     jl_value_t* jl_data_buffer= jl_array(data_buffer, data_size);
+
     jl_value_t* received_data = jl_call3(jl_array_to_struct, opt_data.get(), jl_data_buffer, fieldsizes.get());
 
     return received_data;
