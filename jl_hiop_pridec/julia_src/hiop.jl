@@ -207,7 +207,7 @@ end
 function test_model(refmodel)
 
    TSIGPmodel = refmodel[]
-   println(" Object derefecened successfully! ")
+   println(" Object dereferenced successfully! ")
    return 0;
 
 end
@@ -501,38 +501,38 @@ end
 
 #-- 
 
-struct RecourseDerivativesRef
-    gradient::Ref{Vector{Float64}}
-    hessian::Ref{Vector{Float64}}
-    RecourseDerivativesRef(_grad, _hess) = new(Ref(_grad), Ref(_hess))
-end
+#struct RecourseDerivativesRef
+#    func::Float64
+#    gradient::Ref{Vector{Float64}}
+#    hessian::Ref{Vector{Float64}}
+#    RecourseDerivativesRef(_func, _grad, _hess) = new(_func, Ref(_grad), Ref(_hess))
+#end
+#
+#function get_recourse_derivatives_ref(f, grad, hess)
+#    return Ref(RecourseDerivativesRef(f, grad, hess))
+#end
 
-function get_recourse_derivatives_ref(grad, hess)
-    return Ref(RecourseDerivativesRef(grad, hess))
-end
 
-
-#grad_multiplier and hess_multiplier are uaed for debugging
+#grad_multiplier and hess_multiplier are used for debugging
 struct RecourseDerivatives
-
+    func::Float64
     gradient::Vector{Float64}
     hessian::Vector{Float64}
-   # RecourseDerivativesAlloc(_grad, _hess) = new(_grad, _hess)
-    function RecourseDerivatives(_grad, _hess, _len) 
-
-        grad_copy = Vector{Float64}(undef, _len)
-        hess_copy = Vector{Float64}(undef, _len)
-
-        grad_copy .= grad_multiplier*_grad[1:_len]
-        hess_copy .= hess_multiplier*_hess[1:_len]
-
-        new(grad_copy, hess_copy)
-  
-    end
+#    RecourseDerivatives(_func_, _grad, _hess) = new(_func, _grad, _hess)
+#    function RecourseDerivatives(_func, _grad, _hess, _len) 
+#
+#        grad_copy = Vector{Float64}(undef, _len)
+#        hess_copy = Vector{Float64}(undef, _len)
+#
+#        grad_copy .= grad_multiplier*_grad[1:_len]
+#        hess_copy .= hess_multiplier*_hess[1:_len]
+#
+#        new(_func, grad_copy, hess_copy)
+#    end
 end
 
-function get_recourse_derivatives(grad, hess, _len)
-    return Ref(RecourseDerivatives(grad, hess, _len))
+function get_recourse_derivatives(f, grad, hess)
+    return Ref(RecourseDerivatives(f, grad, hess))
 end
 
 struct SparseMatrixIndexWrap
@@ -772,32 +772,28 @@ function save_opt_iterations(file_path, kval::Pair{String, Float64})
 end
 
 
-function solve_base_case_recourse(ptr, prev_sol, ptr_rderivaties)
+function solve_base_case_recourse(ptr, prev_sol, ptr_rderivatives)
 
    global start_time
    start_time = time()
-
-   G = ptr_rderivaties[].gradient
-   H = ptr_rderivaties[].hessian
+   f = ptr_rderivatives[].func
+   G = ptr_rderivatives[].gradient
+   H = ptr_rderivatives[].hessian
 
    n = length(G)
 
    # Add the quadratic approximation to the master problem, namely
-   # q(x) = G'*(x-xk) + 0.5* (x-xk)'*H*(x-xk), where xk is the previous master solution
+   # q(x) = f + G'*(x-xk) + 0.5* (x-xk)'*H*(x-xk), where xk is the previous master solution
    # \nabla_q (x) = G + H(x-xk)
    # Hessian_q(x) = H
 
    xk = prev_sol[].p_g  #generation
-
-   # CP? I do not know how to get xk: looks like it is in prev_sol. 
-
    # Create n scalar functions for each calculation
 
-   ## the index 1 (in argH[1]) is because there each variable is entered separately because of the hessian
-   recourse_fx = [ (x) -> begin  G[i]*(x-xk[i]) + 0.5*(x-xk[i])'*H[i]*(x-xk[i]) end for i in 1:n ]
+   ## the index 1 (in argH[1]) is because there each variable is entered separately because of the Hessian
+   recourse_fx = [ (x) -> begin f/n + G[i]*(x-xk[i]) + 0.5*(x-xk[i])*H[i]*(x-xk[i]) end for i in 1:n ]
    recourse_gx = [ (argG, x) -> begin argG[1] = G[i] + H[i]*(x-xk[i]) end for i in 1:n ]
    recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
-
 
    SOLUTION_WITH_RECOURSE=
               Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 
