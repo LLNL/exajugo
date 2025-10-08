@@ -149,13 +149,13 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
 #                       recourse_f::T=nothing,   # recourse function value
 #                       recourse_g::T=nothing,   # recourse function gradient
 #                       recourse_H::T=nothing,   # recourse function hessian
-                       recourse_f::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function value
-                       recourse_g::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function gradient
-                       recourse_H::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function hessian
-                       previous_solution::Union{Nothing,
-                                                BasecaseSolution}=nothing,
-                       output_dir::Union{Nothing, String} = nothing,
-                       use_opt::Bool=false
+                        recourse_f::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function value
+                        recourse_g::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function gradient
+                        recourse_H::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function hessian
+                        previous_solution::Union{Nothing,
+                        BasecaseSolution}=nothing,
+                        output_dir::Union{Nothing, String} = nothing,
+                        use_opt::Bool=false
 #                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
                       )::Tuple{BasecaseSolution, Model}
     
@@ -280,15 +280,13 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
             sum_expr += recourse_f[i](p_g_vars[i])  # or whatever quadratic term you want
         end
         contingency_penalty = @NLexpression(m, sum_expr)
-
     end 
 
     # declare objective
- #   @objective(m, Min, production_cost + psd.delta*basecase_penalty +
-  #             (1-psd.delta)*contingency_penalty)
-
+    #@NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
+    #           (1-psd.delta)*contingency_penalty)
     @NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
-               (1-psd.delta)*contingency_penalty)
+                 contingency_penalty)
 
 #    write_to_file(m, "base_case_model.nl")
  #   write_to_file(m, "base_case_model.lp")
@@ -298,9 +296,9 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
        JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
-    #    Uncomment this line of code
-        # error("solver failed to find a feasible solution.")
-        println("solver failed to find a feasible solution.")
+       #Uncomment this line of code
+       # error("solver failed to find a feasible solution.")
+       println("solver failed to find a feasible solution.")
     end
     
     # objective breakdown
@@ -311,9 +309,11 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     # when solving the master, we need the total objective at the optimum
     
     #quick fix: save it in base_cost, as this is currently sent to HiOp PriDec
-    base_cost = JuMP.objective_value(m)
-    
-    #TODO: add the optimal objective in BaseCaseSolution
+    total_obj  = JuMP.objective_value(m)
+
+    rec_quadr_approx = JuMP.value(contingency_penalty)
+    println("Obj for PriDec: objective=", total_obj, "  base_cost=", base_cost, "  recourse=", recourse_cost, " recourse quadr term=", rec_quadr_approx)
+    base_cost = total_obj
 
     solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                 convert(Vector{Float64}, JuMP.value.(b_s)),
@@ -365,7 +365,7 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                        previous_solution::Union{Nothing,
                                                 BasecaseSolution}=nothing,
                        quadratic_relaxation_k::Float64=Inf,
-                       minutes_since_base::Float64=1.0,
+                       minutes_since_base::Float64=15.0,
                        use_huber_like_penalty::Bool=true,
                        output_dir::Union{Nothing, String} = nothing,
                        use_opt::Bool=false
@@ -781,7 +781,7 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
                                              where {T<:SubproblemSolution} =
                                              nothing,
                           quadratic_relaxation_k::Float64=Inf,
-                          minutes_since_base::Float64=1.0,
+                          minutes_since_base::Float64=15.0,
                           use_huber_like_penalty::Bool=true,
                           output_dir::Union{Nothing, String} = nothing,
                           use_opt::Bool=false
@@ -824,7 +824,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                                              where {T<:SubproblemSolution} =
                                              nothing,
                           quadratic_relaxation_k::Float64=Inf,
-                          minutes_since_base::Float64=1.0,
+                          minutes_since_base::Float64=15.0,
                           use_huber_like_penalty::Bool=true,
                           output_dir::Union{Nothing, String} = nothing,
                           cont_idx::Union{Nothing, Int64} = nothing,
@@ -855,8 +855,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               psd.SSh[s,:Bub], start=x0[:b_sk][s])
     @variable(m, p_gk[g=1:nrow(psd.G)], start = x0[:p_gk][g])
     @variable(m, q_gk[g=1:nrow(psd.G)], start = x0[:q_gk][g])
-    @variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
-              start=x0[:p_gk][g])       # clone of first stage variable
+    #@variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
+    #          start=x0[:p_gk][g])       # clone of first stage variable
     @variable(m, pslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_nk][n])
     @variable(m, pslackp_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackp_nk][n])
     @variable(m, qslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackm_nk][n])
@@ -879,12 +879,21 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               else 1:nrow(psd.G)
               end
 
-    @constraint(m, [g in Gonline], psd.G[g,:Plb] <= p_gk[g] <= psd.G[g,:Pub])
+    #@constraint(m, [g in Gonline], psd.G[g,:Plb] <= p_gk[g] <= psd.G[g,:Pub])
     @constraint(m, [g in Gonline], psd.G[g,:Qlb] <= q_gk[g] <= psd.G[g,:Qub])
-    @constraint(m, [g in Gonline], p_gk[g] - p_g0[g] <=
-                                   psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
-    @constraint(m, [g in Gonline], p_g0[g] - p_gk[g] <=
-                                   psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
+
+
+    ### Ramping constraints are merged with generation bounds to avoid linear dependence, which results in trash recourse gradients
+    #@constraint(m, ramp_up[g in Gonline], p_gk[g] - basecase_solution.p_g[g] <= psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
+    #@constraint(m, ramp_down[g in Gonline], basecase_solution.p_g[g] - p_gk[g] <= psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
+    
+    ramp_range = psd.G[:, :Pub] .* psd.G[:, :RampRate] * minutes_since_base
+    pg_lb = max.(psd.G[:,:Plb], basecase_solution.p_g .- ramp_range)
+    pg_ub = min.(psd.G[:,:Pub], basecase_solution.p_g .+ ramp_range)
+    @constraint(m, ramp_up[g in Gonline], p_gk[g] <= pg_ub[g])
+    # direction "<=" of this is important in duals computation
+    @constraint(m, ramp_down[g in Gonline], - p_gk[g] <= - pg_lb[g])
+    println("minutes_since_base in solve_contingency: ", minutes_since_base)
     
     # enforce out of service generators
     if length(con.generators_out) > 0
@@ -900,7 +909,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         @constraint(m, non_anticipativity_con[g=1:nrow(psd.G)],
                     p_g0[g] - basecase_solution.p_g[g] == aux_slack_gk[g])
     else
-        @constraint(m, non_anticipativity_con[g=1:nrow(psd.G)], p_g0[g] == basecase_solution.p_g[g])
+        #@constraint(m, non_anticipativity_con[g=1:nrow(psd.G)], p_g0[g] == basecase_solution.p_g[g])
     end
     
     # contingency penalty
@@ -1016,9 +1025,30 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         obj_grad = 2 * quadratic_relaxation_k * (basecase_solution.p_g[g] - JuMP.value.(p_g0))
     else
         if has_duals(m)
-            obj_grad = JuMP.dual.(non_anticipativity_con)
-                       # check sign consistency before using these duals; JuMP does not use the same
-                       # duality conventions as most OR modeling software
+            # obj_grad = JuMP.dual.(non_anticipativity_con)
+            obj_grad = 0.0 * basecase_solution.p_g
+
+            duals_ramp = JuMP.dual.(ramp_down)
+            for g in Gonline
+              # sensitivity w.r.t. basecase pg only when ramping was enforced; otherwise, the generator hit the 
+              # lb and the sensitivity is zero, meaning zero change in recourse when master changes basecase pg.
+              if basecase_solution.p_g[g] - ramp_range[g] == pg_lb[g]
+                obj_grad[g] += duals_ramp[g]
+              end
+            end
+            duals_ramp = JuMP.dual.(ramp_up)            
+            for g in Gonline
+              #sensitivity w.r.t. basecase pg - see above note
+              if basecase_solution.p_g[g] + ramp_range[g] == pg_ub[g]
+                obj_grad[g] += duals_ramp[g]
+              end
+            end
+
+            # check sign consistency before using these duals; JuMP does not use the same
+            # duality conventions as most OR modeling software
+            #println("PriDec rec grad non_anti  ", JuMP.dual.(non_anticipativity_con))
+            #println("PriDec rec grad ramp_up   ", JuMP.dual.(ramp_up))
+            #println("PriDec rec grad ramp_down ", JuMP.dual.(ramp_down))
         else
             obj_grad = nothing
         end
@@ -1094,7 +1124,7 @@ function solve_random_contingency(psd::SCACOPFdata, n_failures::Int,
                                                      where {T<:SubproblemSolution} =
                                                      nothing,
                                   quadratic_relaxation_k::Float64=Inf,
-                                  minutes_since_base::Float64=1.0,
+                                  minutes_since_base::Float64=15.0,
                                   use_huber_like_penalty::Bool=true)::ContingencySolution
     
     # generate random contingency
