@@ -1,12 +1,9 @@
-
 #include "jl_NlpPriDec.hpp"
-
 
 #include <cassert>
 #include <cstring>  //for memcpy
 #include <cstdio>
 #include <cmath>
-
 
 hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
                                                      const bool& include_r,
@@ -21,7 +18,10 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
   jl_prob.set_hess_multiplier(1.0);
  
   // needs to fix to get the solver status
-  jl_prob.solve_base(this->get_recourse_gradient(), this->get_recourse_hessian()); //JL_solve_base_case(opt_data);
+  //JL_solve_base_case(opt_data);
+  jl_prob.solve_base(this->get_recourse_f0(),
+                     this->get_recourse_gradient(),
+                     this->get_recourse_hessian()); 
 
   if (!jl_prob.success())
    {
@@ -52,9 +52,7 @@ hiopSolveStatus JL_PriDecMasterProblem::solve_master(hiopVector& x,
 
 bool JL_PriDecMasterProblem::eval_f_rterm(size_type idx, const int& n, const double* x, double& rval)
 {
-
    jl_prob.solve_contingency_recourse(idx, rval); 
-
    return true;
 };
 

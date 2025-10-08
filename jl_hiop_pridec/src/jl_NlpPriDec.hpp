@@ -97,6 +97,14 @@ private:
 
 hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator_;
 
+  double get_recourse_f0()
+  {
+    if(evaluator_ == nullptr) {
+      return 0.;
+    }
+    return evaluator_->get_rval();
+  }
+  
 double *get_recourse_gradient() const
 {
    if (evaluator_ == nullptr) return nullptr;
