@@ -565,7 +565,9 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         end
         
         # fix angle at reference bus to zero
-        JuMP.fix(theta_nk[psd.RefBus, k], 0.0, force=true)
+        for con_RB=1:length(psd.Con_RefBus[k])
+            JuMP.fix(theta_nk[psd.Con_RefBus[k][con_RB], k], 0.0, force=true)
+        end
 
         # add power flow constraints
         addpowerflowcons!(m, v_nk[:,k], theta_nk[:,k], p_lik[:,:,k], q_lik[:,:,k], p_tik[:,:,k], 
@@ -868,7 +870,11 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               start=x0[:sslack_tik][t,i])
     
     # fix angle at reference bus to zero
-    JuMP.fix(theta_nk[psd.RefBus], 0.0, force=true)
+    # JuMP.fix(theta_nk[psd.RefBus], 0.0, force=true)
+
+    for con_RB=1:length(psd.Con_RefBus[k])
+        JuMP.fix(theta_nk[psd.Con_RefBus[k][con_RB]], 0.0, force=true)
+    end
     
     # add power flow constraints
     addpowerflowcons!(m, v_nk, theta_nk, p_lik, q_lik, p_tik, q_tik, b_sk,

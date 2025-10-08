@@ -159,7 +159,28 @@ function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, N::Da
 
     # Loop through each contingency case
     for k = 1:length(contingencies.CON)
-        # println("Contingency ", k)
+        confb = Int[]       # From buses
+        contb = Int[]       # To buses
+        conskt = Vector{Vector{Int64}}()  # Each entry stores a vector of circuit IDs
+
+        for i in 1:length(contingencies.CON[k])
+            con = contingencies.CON[k][i]
+
+            if hasproperty(con, :FromBus)
+                # Find existing index where (FromBus, ToBus) matches
+                idx = findfirst(j -> confb[j] == con.FromBus && contb[j] == con.ToBus, eachindex(confb))
+
+                if isnothing(idx)
+                    # First time we see this (FromBus, ToBus) pair → create new entry
+                    push!(confb, con.FromBus)
+                    push!(contb, con.ToBus)
+                    push!(conskt, [parse(Int, con.Ckt)])   # Start new vector
+                else
+                    # Pair already exists → append to that inner vector
+                    push!(conskt[idx], parse(Int, con.Ckt))
+                end
+            end
+        end 
 
         # Create a new graph representing the network topology.
         # Number of vertices = total number of lines + total number of transformers.
@@ -169,26 +190,37 @@ function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, N::Da
         # Add transmission line edges
         # ---------------------------
         for i = 1:length(L.From)
-            add_edge!(g, L.From[i], L.To[i])
+            # Find all indices where both FromBus and ToBus match
+            idxfb = findall(x -> x == L.From[i], confb)
+            idxtb = findall(x -> x == L.To[i], contb)
+            idx = intersect(idxfb, idxtb)
+            if isempty(idx)
+                # No existing edge — add it directly
+                add_edge!(g, L.From[i], L.To[i])
+            else
+                if !(parse(Int, L.CktID[i]) in conskt[idx[:]][1] )
+                    add_edge!(g, L.From[i], psd.L.To[i])
+                end
+            end
         end
 
         # ---------------------------
         # Add transformer connections
         # ---------------------------
         for i = 1:length(T.From)
-            add_edge!(g, T.From[i], T.To[i])
-        end
-
-        # ---------------------------
-        # Remove contingency lines
-        # ---------------------------
-        # Each contingency may remove one or more lines (transmission or transformer)
-        for i = 1:length(contingencies.CON[k])
-            # Ensure the contingency type has the field :FromBus (e.g., TransmissionContingency)
-            if hasproperty(contingencies.CON[k][i], :FromBus)
-                # Remove the edge between the specified buses to simulate the line outage
-                rem_edge!(g, contingencies.CON[k][i].FromBus, contingencies.CON[k][i].ToBus)
+            # Find all indices where both FromBus and ToBus match            
+            idxfb = findall(x -> x == T.From[i], confb)
+            idxtb = findall(x -> x == T.To[i], contb)
+            idx = intersect(idxfb, idxtb)
+            if isempty(idx)
+                # No existing edge — add it directly
+                add_edge!(g, T.From[i], T.To[i])
+            else
+                if !(parse(Int, T.CktID[i]) in conskt[idx[:]][1] )
+                    add_edge!(g, T.From[i], T.To[i])
+                end            
             end
+
         end
 
         # ---------------------------
@@ -196,14 +228,13 @@ function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, N::Da
         # ---------------------------
         # Each connected component corresponds to an electrical island after the contingency
         islands = connected_components(g)
-        # display(islands)    
+        islands = filter(x -> length(x) > 1, islands)
 
         # Initialize the reference bus list for this contingency
         Refbuses[k] = Int[]
 
         # Loop through each island to determine a reference bus
         for is = 1:length(islands)
-            # println("Island ", is)
 
             # Find which generator buses belong to this island
             island_gens = intersect(islands[is], gen_bus_id)
@@ -220,9 +251,6 @@ function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, N::Da
                 push!(Refbuses[k], G_Nidx[all_indices[argmax(G[all_indices, :Pub])]])
             end
         end
-
-        # Display the reference bus list so far (optional debugging output)
-        # display(Refbuses)
     end
     return Refbuses
 end
