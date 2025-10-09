@@ -870,8 +870,6 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               start=x0[:sslack_tik][t,i])
     
     # fix angle at reference bus to zero
-    # JuMP.fix(theta_nk[psd.RefBus], 0.0, force=true)
-
     for con_RB=1:length(psd.Con_RefBus[k])
         JuMP.fix(theta_nk[psd.Con_RefBus[k][con_RB]], 0.0, force=true)
     end
