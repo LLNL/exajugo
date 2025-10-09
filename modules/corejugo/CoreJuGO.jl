@@ -2,7 +2,7 @@
 
 module CoreJuGO
 
-using Printf, Random, DataFrames, CSV, Graphs, JuMP, Ipopt
+using Printf, Random, DataFrames, CSV, Graphs, JuMP, Ipopt, Graphs
 
 const MOI = JuMP.MOI
 
