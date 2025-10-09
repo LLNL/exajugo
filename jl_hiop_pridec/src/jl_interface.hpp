@@ -165,23 +165,25 @@ protected:
 
     jl_value_t* read_data() 
     {
+      const char* env_path = std::getenv("PATH_TO_INSTANCES");
+      assert(env_path != nullptr); // This will catch unset env variable
+      std::string exajugo_path(env_path);
 
-    const char* env_path = std::getenv("PATH_TO_INSTANCES");
-    assert(env_path != nullptr); // This will catch unset env variable
-    std::string exajugo_path(env_path);
-
-       assert(!exajugo_path.empty());
-       assert(!instance.empty());
-       assert(preferred_separator != '\0');
-
-       //std::string example_path = exajugo_path+instance+fs::path::preferred_separator;
-       std::string example_path = exajugo_path+instance+preferred_separator;
-
-       std::cout << "Example path: " << example_path << std::endl;
-       std::cout << "Instance: " << instance << std::endl;
-       jl_value_t* jl_opt_instance = jl_cstr_to_string(instance.c_str());
-       assert(jl_opt_instance);
-       return jl_call1(jl_load_ACOPF_instance, jl_opt_instance);
+      assert(!exajugo_path.empty());
+      assert(!instance.empty());
+      assert(preferred_separator != '\0');
+      
+      if(exajugo_path.back() != preferred_separator) {
+        exajugo_path += preferred_separator;
+      }
+      //std::string example_path = exajugo_path+instance+fs::path::preferred_separator;
+      std::string example_path = exajugo_path+instance+preferred_separator;
+      
+      std::cout << "Example path: " << example_path << std::endl;
+      std::cout << "Instance: " << instance << std::endl;
+      jl_value_t* jl_opt_instance = jl_cstr_to_string(instance.c_str());
+      assert(jl_opt_instance);
+      return jl_call1(jl_load_ACOPF_instance, jl_opt_instance);
     }
 
     jl_value_t* get_field_data()
@@ -229,22 +231,23 @@ public:
 
     void solve_contingency_recourse(int i, double& rval) 
     {  
-        if (i<nproc-1)
-           receive_solution(); 
-
-        solve_contingency_prob(i);  //cont_sol
-        getCost(rval);
-
+      if (i<nproc-1) {
+        receive_solution(); 
+      }
+      solve_contingency_prob(i);  //cont_sol
+      getCost(rval);     
     }
 
     // Solve contingency problem
     void solve_contingency_prob(int i)
     {
-//       int cont_id = i+1;
-       int cont_id = jl_unbox_int64(jl_call2(jl_ret_cont_index, cont_indices.get(), jl_box_int64(i))); 
+      //int cont_id = i+1;
+      jl_value_t* cont_id_jl = jl_call2(jl_ret_cont_index, cont_indices.get(), jl_box_int64(i));
+      assert(cont_id_jl);
+      int cont_id = jl_unbox_int64(cont_id_jl); 
 
-       cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get()));
-       save_jl_array(jl_save_cont_solution, "solution_"+std::to_string(cont_id), cont_sol.get(), cont_id);
+      cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get()));
+      save_jl_array(jl_save_cont_solution, "solution_"+std::to_string(cont_id), cont_sol.get(), cont_id);
 
     }
     

@@ -171,7 +171,10 @@ JL_Interface::JL_Interface(const std::string& _output, const std::string& _inst,
 
     jl_value_t* od = read_data();
     assert(od);
-    cont_indices.set(jl_call1(jl_get_cont_indices, opt_data.get()));
+    opt_data.set(od);
+    jl_value_t* cont_inds_jl = jl_call1(jl_get_cont_indices, opt_data.get());
+    assert(cont_inds_jl);
+    cont_indices.set(cont_inds_jl);
 
     fieldsizes.set(get_field_data()); 
     size_buffer = jl_unbox_int64(jl_call1(jl_full_solution_dim, fieldsizes.get()));
