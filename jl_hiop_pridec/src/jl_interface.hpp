@@ -246,7 +246,10 @@ public:
       assert(cont_id_jl);
       int cont_id = jl_unbox_int64(cont_id_jl); 
 
-      cont_sol.set(jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get()));
+      jl_value_t* cont_sol_jl = jl_call3(jl_solve_contingency_pridec, opt_data.get(), jl_box_int64(cont_id), base_sol.get());
+      fflush(stdout);
+      assert(cont_sol_jl && "jl_solve_contingency_pridec failed -> returned null ptr");
+      cont_sol.set(cont_sol_jl);
       save_jl_array(jl_save_cont_solution, "solution_"+std::to_string(cont_id), cont_sol.get(), cont_id);
 
     }
@@ -289,12 +292,14 @@ public:
     }
    
    // Function to save a Julia array to a CSV file
-    void save_jl_array(jl_function_t* jl_save,
-                       const std::string& filename, jl_value_t* array_ptr, int cont_id=0) 
+    void save_jl_array(jl_function_t* jl_save, const std::string& filename, jl_value_t* array_ptr, int cont_id=0) 
     {
        std::string fullpath = buildOutputPath(filename, cont_id); 
 
        jl_value_t* jl_fname = jl_cstr_to_string(fullpath.c_str());
+       assert(jl_fname);
+       assert(jl_save);
+       assert(array_ptr);
        jl_call3(jl_save, jl_fname, opt_data.get(), array_ptr);
     }
 

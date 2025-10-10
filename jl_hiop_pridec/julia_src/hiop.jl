@@ -16,7 +16,7 @@ start_time = time()
 
 #"linear_solver" => "ma27",
 
-function get_optimimizer()
+function get_optimizer()
 
     return optimizer_with_attributes(Ipopt.Optimizer, "sb" => "yes")
 
@@ -80,15 +80,15 @@ if haskey(ENV, "BASE_CASE_OPTIONS")
    end
 end
 
-function get_optimimizer_base_case()
+function get_optimizer_base_case()
 
     return optimizer_with_attributes(Ipopt.Optimizer, base_case_options...)
 
 end
 
-function get_optimimizer_base_case_recourse()
+function get_optimizer_base_case_recourse()
 
-    return get_optimimizer_base_case()
+    return get_optimizer_base_case()
 
 end
 
@@ -120,7 +120,7 @@ if haskey(ENV, "CONTINGENCY_CASE_OPTIONS")
    end
 end
 
-function get_optimimizer_contingency()
+function get_optimizer_contingency()
 
     return optimizer_with_attributes(Ipopt.Optimizer, cont_case_options...)
 
@@ -261,7 +261,7 @@ end
 
 function getModel(ptr)
 
-   return Ref(basecase_model_pridec(ptr[], get_optimimizer()))
+   return Ref(basecase_model_pridec(ptr[], get_optimizer()))
 
 end
 
@@ -787,7 +787,7 @@ function solve_base_case_recourse(ptr, prev_sol, ptr_rderivatives)
    recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
 
    SOLUTION_WITH_RECOURSE=
-              Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 
+              Ref(solve_basecase(ptr[], get_optimizer_base_case_recourse(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
 
@@ -822,7 +822,7 @@ function solve_base_case_recourse_sparse(ptr, prev_sol, ptr_rderivaties)
    recourse_Hx = [ (argH, x) -> begin argH[1] = H[i]; end for i in 1:n ]
 
    SOLUTION_WITH_RECOURSE=
-              Ref(solve_basecase(ptr[], get_optimimizer_base_case_recourse(), 
+              Ref(solve_basecase(ptr[], get_optimizer_base_case_recourse(), 
               recourse_f=recourse_fx, recourse_g=recourse_gx, recourse_H=recourse_Hx,
               previous_solution=prev_sol[])[1])
 
@@ -838,8 +838,8 @@ function solve_base_case(ptr)
    global start_time
    start_time = time()
 
-   SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer_base_case())[1])
-  # SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimimizer()))
+   SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimizer_base_case())[1])
+   #SOLUTION_WITH_RECOURSE_BASE= Ref(solve_basecase(ptr[], get_optimizer()))
 
    #allocated_bytes = Base.gc_bytes()
    #println("BASE Memory allocated: ", allocated_bytes, " bytes")
@@ -889,43 +889,32 @@ end
 #end
 
 function number_of_columns(ptr)
-
    return nrow(ptr[].G)
-
 end
 
 
 function total_number_of_contingencies(ptr)
-
    return length(ptr[].cont_labels)
-
 end
 
 function number_of_contingencies(ptr)
-
    return length(ptr[])
-
 end
 
 
 function solve_contingency_pridec(ptr, i::Int64, ptr_basesol)
- 
    global start_time
    start_time = time()
 
    ptr_basesol[].psd_hash = hash(ptr[])
-
-   CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimimizer_contingency()))
+   CONT_SOL = Ref(solve_contingency(ptr[], i, ptr_basesol[], get_optimizer_contingency()))
    #debug: println(CONT_SOL[])
    return CONT_SOL
-
 end
 
 
 function ret_cont_index(ptr, i)
-
     return ptr[][i+1]
-
 end
 
 

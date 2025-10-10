@@ -831,6 +831,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                           use_opt::Bool=false)::ContingencySolution
     
 
+    k = cont_idx
+
     quadratic_relaxation_k > 0 || error("quadratic relaxation penalty should be positive")
     
     # get primal starting point
@@ -865,7 +867,9 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               start=x0[:sslack_lik][l,i])
     @variable(m, sslack_tik[t=1:nrow(psd.T), i=1:2] >= 0,
               start=x0[:sslack_tik][t,i])
-    
+
+    println("solve_contingency k=", k, " psd.Con_RefBus=", psd.Con_RefBus)
+    flush(stdout)
     # fix angle at reference bus to zero
     for con_RB=1:length(psd.Con_RefBus[k])
         JuMP.fix(theta_nk[psd.Con_RefBus[k][con_RB]], 0.0, force=true)
