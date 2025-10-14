@@ -95,7 +95,7 @@ private:
   double obj_;
   double* sol_;
 
-hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator_;
+  hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator_;
 
   double get_recourse_f0()
   {
@@ -105,24 +105,32 @@ hiopInterfacePriDecProblem::RecourseApproxEvaluator* evaluator_;
     return evaluator_->get_rval();
   }
   
-double *get_recourse_gradient() const
-{
-   if (evaluator_ == nullptr) return nullptr;
-
+  double* get_recourse_gradient() const
+  {
+    if(evaluator_ == nullptr) {
+      return nullptr;
+    }
+    
     hiopVector* hograd = evaluator_->get_rgrad(); 
-    return hograd->local_data();
+    return hograd->local_data();   
+  }
 
-}
-
-double *get_recourse_hessian() const
-{
-   if (evaluator_ == nullptr) return nullptr;
-
+  double* get_recourse_hessian() const
+  {
+    if(evaluator_ == nullptr) {
+      return nullptr;
+    }
+    
     hiopVector* hograd = evaluator_->get_rhess(); 
     return hograd->local_data();
-}
-
-
+  }
+  double* get_recourse_x0() const
+  {
+    if(evaluator_ == nullptr) {
+      return nullptr;
+    }
+    return evaluator_->get_x0()->local_data();
+  }
 };
 
 #endif

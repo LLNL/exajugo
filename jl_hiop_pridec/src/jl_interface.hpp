@@ -42,6 +42,7 @@ extern jl_function_t* jl_getModel;
 extern jl_function_t* jl_getDim;
 extern jl_function_t* jl_getObjective;
 extern jl_function_t* jl_getSolution;
+extern jl_function_t* jl_setSolution;
 
 extern jl_function_t* jl_solve_contingency_pridec;
 extern jl_function_t* jl_getCost;
@@ -229,11 +230,13 @@ public:
 
     void getCost(double& rval) { rval =  jl_unbox_float64(jl_call1(jl_getCost, cont_sol.get())); }
 
-    void solve_contingency_recourse(int i, double& rval) 
+    void solve_contingency_recourse(int i, const double* x0_base, double& rval) 
     {  
       if (i<nproc-1) {
         receive_solution(); 
       }
+      //make sure base uses the right xk
+      setSolution(x0_base);
       solve_contingency_prob(i);  //cont_sol
       getCost(rval);     
     }
@@ -264,21 +267,31 @@ public:
         jl_call2(jl_getGradient, cont_sol.get(), jl_array(x_vec, getDim()));
     }
 
-    // Get objective value
+    // Get master objective value
     double getObjective()
     {
         return jl_unbox_float64(jl_call1(jl_getObjective, base_sol.get()));
     }
 
-    // Get solution
+    // Get master solution
     void getSolution(double* x_vec)
     {
        jl_value_t* jl_x =  jl_array(x_vec, getDim());
        jl_call2(jl_getSolution, base_sol.get(), (jl_value_t*)jl_x);
     }
 
-//    int64_t number_of_contingencies() const { return jl_unbox_int64(jl_call1(jl_number_of_contingencies, opt_data.get())); }
-    int64_t number_of_contingencies() const { return jl_unbox_int64(jl_call1(jl_number_of_contingencies, cont_indices.get())); }
+    // Set master solution
+    void setSolution(const double* x_vec)
+    {
+      jl_value_t* jl_x =  jl_array(const_cast<double*>(x_vec), getDim());
+      assert(jl_x);
+      jl_call2(jl_setSolution, base_sol.get(), (jl_value_t*)jl_x);
+    }
+  
+    int64_t number_of_contingencies() const
+    {
+      return jl_unbox_int64(jl_call1(jl_number_of_contingencies, cont_indices.get()));
+    }
 
     int64_t number_of_columns() const 
     {
@@ -364,7 +377,7 @@ public:
     void test_solve_base_case_with_recourse(double *grad, double *hess) 
     {
        jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
-     //  jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
+       //jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
 
        int64_t* _rows;
        int64_t* _cols;
@@ -372,12 +385,12 @@ public:
        int64_t nnz=getDim();
        iter+=1;
 
-      // convert hessian to sparse for testing
+       // convert hessian to sparse for testing
        denseToSparse(hess, getDim(), _rows, _cols, _vals, nnz);
 
        sparse_matrix_wrap(_rows, _cols, _vals, nnz);
 
-// this is necessary to root pointers tp protect from Julia GC
+       // this is necessary to root pointers tp protect from Julia GC
        JL_GC_PUSH1(&jl_grad);
 
        jl_value_t* ptr_rderivatives = 
@@ -394,69 +407,74 @@ public:
 
      }
 
-    // Solve base optimization problem
-    void solve_base_case_with_recourse(const double& f, double *grad, double *hess) 
-    {
-       jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
-       jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
-       jl_value_t* jl_func = jl_box_float64(f);
-       // this is necessary to protect pointers from Julia GC
-       JL_GC_PUSH3(&jl_func, &jl_grad, &jl_hess);
-
-       jl_value_t* ptr_rderivatives = 
-         jl_call3(jl_get_recourse_derivatives, jl_func, jl_grad, jl_hess);
-
-       assert(ptr_rderivatives);
-       assert(opt_data.get());
-       assert(base_sol.get());
-       jl_value_t* ret_base_sol = jl_call3(jl_solve_base_case_recourse, opt_data.get(), base_sol.get(), ptr_rderivatives);
-       assert(ret_base_sol && "failure of calling jl_solve_base_case_recourse");
-       
-       base_sol.set(ret_base_sol);
-       
-       save_jl_array(jl_save_array, "gradient", (jl_value_t*)jl_grad);
-       save_jl_array(jl_save_array, "hessian", (jl_value_t*)jl_hess);
-
-       JL_GC_POP();
-     }
-
-     void solve_base() 
-     {
-        base_sol.set(jl_call1(jl_solve_base_case, opt_data.get())); 
-
-     }
+  // Solve base optimization problem
+  void solve_base_case_with_recourse(const double& f, double* grad, double* hess, double* x0) 
+  {
+    jl_value_t* jl_grad = jl_array_mult(grad, getDim(), grad_multiplier);
+    jl_value_t* jl_hess = jl_array_mult(hess, getDim(), hess_multiplier);
+    jl_value_t* jl_func = jl_box_float64(f);
+    // this is necessary to protect pointers from Julia GC
+    JL_GC_PUSH3(&jl_func, &jl_grad, &jl_hess);
     
-     bool success() { return base_sol.get() != nullptr; }
-
-     void solve_base(const double& f, double *grad, double *hess) 
-     {
-        if (base_sol.get() == nullptr)
-           solve_base();
-        else
-          solve_base_case_with_recourse(f, grad, hess);
-           //test_solve_base_case_with_recourse(grad, hess);
-       
-
-       std::cout<<" --- BASE CASE SOLVED! --- \n";
-       try {
-
-         jl_value_t* solptr = base_sol.get();
-
-         if (solptr == nullptr)
-         {
-             std::cout<<" --- Solution could not be retrieved! ---\n"; 
-             return;
-          }
-          std::cout<<" --- sol pointer: "<< solptr <<" ---\n"; 
-          save_jl_array(jl_save_solution, "solution", solptr);
-        } 
-        catch (...) { // Catch-all handler
-          std::cerr << "Error saving solution!" << std::endl;
-         }
-       std::cout<<" --- SOLUTION saved! ---\n";
-
-     }
-
+    //update derivatives
+    jl_value_t* ptr_rderivatives = 
+      jl_call3(jl_get_recourse_derivatives, jl_func, jl_grad, jl_hess);
+    
+    //update base_sol with the x0, since p_g stored may be different than what PriDec wants (when rejecting steps)
+    setSolution(x0);
+    
+    
+    assert(ptr_rderivatives);
+    assert(opt_data.get());
+    assert(base_sol.get());
+    jl_value_t* ret_base_sol = jl_call3(jl_solve_base_case_recourse, opt_data.get(), base_sol.get(), ptr_rderivatives);
+    assert(ret_base_sol && "failure of calling jl_solve_base_case_recourse");
+    
+    base_sol.set(ret_base_sol);
+    
+    save_jl_array(jl_save_array, "gradient", (jl_value_t*)jl_grad);
+    save_jl_array(jl_save_array, "hessian", (jl_value_t*)jl_hess);
+    
+    JL_GC_POP();
+  }
+  
+  void solve_base() 
+  {
+    base_sol.set(jl_call1(jl_solve_base_case, opt_data.get())); 
+    
+  }
+  
+  bool success() { return base_sol.get() != nullptr; }
+  
+  void solve_base(const double& f, double* grad, double* hess, double* x0) 
+  {
+    if(base_sol.get() == nullptr) {
+      solve_base();
+    }
+    else {
+      solve_base_case_with_recourse(f, grad, hess, x0);
+      //test_solve_base_case_with_recourse(grad, hess);
+    }
+    
+    std::cout<<" --- BASE CASE SOLVED! --- \n";
+    try {
+      
+      jl_value_t* solptr = base_sol.get();
+      
+      if (solptr == nullptr)
+      {
+        std::cout<<" --- Solution could not be retrieved! ---\n"; 
+        return;
+      }
+      std::cout<<" --- sol pointer: "<< solptr <<" ---\n"; 
+      save_jl_array(jl_save_solution, "solution", solptr);
+    } 
+    catch (...) { // Catch-all handler
+      std::cerr << "Error saving solution!" << std::endl;
+    }
+    std::cout<<" --- SOLUTION saved! ---\n";
+    
+  }
 };
 
 #endif

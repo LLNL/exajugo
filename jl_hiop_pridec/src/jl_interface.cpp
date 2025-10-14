@@ -38,6 +38,7 @@ jl_function_t* jl_getModel;
 jl_function_t* jl_getDim;
 jl_function_t* jl_getObjective;
 jl_function_t* jl_getSolution;
+jl_function_t* jl_setSolution;
 
 jl_function_t* jl_solve_contingency_pridec;
 jl_function_t* jl_getCost;
@@ -105,6 +106,7 @@ void include_jl_functions()
     jl_getDim = jl_get_function(jl_main_module, "getDim");
     jl_getObjective = jl_get_function(jl_main_module, "getObjective");
     jl_getSolution = jl_get_function(jl_main_module, "getSolution");
+    jl_setSolution = jl_get_function(jl_main_module, "setSolution");
 
     jl_solve_contingency_pridec = jl_get_function(jl_main_module, "solve_contingency_pridec");
     jl_getCost = jl_get_function(jl_main_module, "getCost");

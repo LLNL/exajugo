@@ -419,6 +419,12 @@ function getSolution(ptr, x)
    end
 end
 
+function setSolution(ptr, x)
+   for i in eachindex(ptr[].p_g)
+       ptr[].p_g[i] = x[i]
+   end
+end
+
 function getObjective(ptr)
    return ptr[].total_objective
 end
