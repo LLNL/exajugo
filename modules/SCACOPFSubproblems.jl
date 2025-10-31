@@ -9,6 +9,9 @@ export solve_base_power_flow, solve_basecase, solve_contingency, solve_random_co
        solve_SC_ACOPF, 
        SCACOPFdata, GenericContingency, 
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
+       get_primal_starting_point,
+       get_full_initial_solution,
+       get_full_solution,
        write_solution
 
 ## load external modules
