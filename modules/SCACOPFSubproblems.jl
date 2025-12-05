@@ -285,11 +285,13 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     # declare objective
     #@NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
     #           (1-psd.delta)*contingency_penalty)
+
+    # fixme
     @NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
                  contingency_penalty)
 
-#    write_to_file(m, "base_case_model.nl")
- #   write_to_file(m, "base_case_model.lp")
+    #write_to_file(m, "base_case_model.nl")
+    #write_to_file(m, "base_case_model.lp")
 
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
@@ -310,11 +312,28 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     total_objective  = JuMP.objective_value(m)
 
     rec_quadr_approx = JuMP.value(contingency_penalty)
-    println("Obj for PriDec: objective=", total_objective, "  base_cost=", base_cost, "  recourse=", recourse_cost, " recourse quadr term=", rec_quadr_approx)
+    println("master Obj for PriDec: objective=", total_objective, "  base_cost=", base_cost, "  recourse=", recourse_cost, " recourse quadr term=", rec_quadr_approx)
+
+    pgval = JuMP.value.(p_g)
+
+    # fixme/deleteme just some checking and postprocessing code 
+    #for g=1:nrow(psd.G)
+    #
+    #  if abs(pgval[g]-psd.G[g,:Plb])<1e-6
+    #    diff = pgval[g]-psd.G[g,:Plb]
+    #    pgval[g] = psd.G[g,:Plb]
+    #    println("masterr lb close: gen ", g, "  pg=", pgval[g], "  diff=", diff)       
+    #  end
+    #  if abs(pgval[g]-psd.G[g,:Pub])<1e-6
+    #    diff = -pgval[g]+psd.G[g,:Pub]
+    #    pgval[g] = psd.G[g,:Pub]
+    #    println("masterr ub close: gen ", g, "  pg=", pgval[g], "  diff=", diff)
+    #  end
+    #end
 
     solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                 convert(Vector{Float64}, JuMP.value.(b_s)),
-                                JuMP.value.(p_g), JuMP.value.(q_g),
+                                pgval, JuMP.value.(q_g),
                                 base_cost, recourse_cost, total_objective)
 
     # write the information about the system
@@ -352,8 +371,6 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                         JuMP.value.(sslack_li), JuMP.value.(sslack_ti))
     end
 
-    # return solution
-#    return solution
     return solution, m
     
 end
@@ -857,8 +874,16 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               psd.SSh[s,:Bub], start=x0[:b_sk][s])
     @variable(m, p_gk[g=1:nrow(psd.G)], start = x0[:p_gk][g])
     @variable(m, q_gk[g=1:nrow(psd.G)], start = x0[:q_gk][g])
-    #@variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
-    #          start=x0[:p_gk][g])       # clone of first stage variable
+
+    if quadratic_relaxation_k < Inf
+      # clone of first stage variable, but only when quadratic relaxation
+      # for non-anticipativity constraints is used. No cloning by default, to
+      # avoid introducing additional equality constraints; instead p_g0 is
+      # treated as a parameter in the ramping constraints, which are also
+      # merged with the bounds constraints
+      @variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
+                start=x0[:p_gk][g])
+    end
     @variable(m, pslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_nk][n])
     @variable(m, pslackp_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackp_nk][n])
     @variable(m, qslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackm_nk][n])
@@ -884,21 +909,26 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     Gonline = if length(con.generators_out)>0 setdiff(1:nrow(psd.G), con.generators_out)
               else 1:nrow(psd.G)
               end
-
+    #this is now merged with the ramping constraints
     #@constraint(m, [g in Gonline], psd.G[g,:Plb] <= p_gk[g] <= psd.G[g,:Pub])
     @constraint(m, [g in Gonline], psd.G[g,:Qlb] <= q_gk[g] <= psd.G[g,:Qub])
 
 
-    ### Ramping constraints are merged with generation bounds to avoid linear dependence, which results in trash recourse gradients
+    # Ramping constraints are merged with generation bounds to avoid introducing linear
+    # dependence in the constraints
+    #
+    # Original ramping constraints:
     #@constraint(m, ramp_up[g in Gonline], p_gk[g] - basecase_solution.p_g[g] <= psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
     #@constraint(m, ramp_down[g in Gonline], basecase_solution.p_g[g] - p_gk[g] <= psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
-    
+
+    # Merge bound constraints and ramping constraints and impose them as lower and upper bounds only
     ramp_range = psd.G[:, :Pub] .* psd.G[:, :RampRate] * minutes_since_base
     pg_lb = max.(psd.G[:,:Plb], basecase_solution.p_g .- ramp_range)
     pg_ub = min.(psd.G[:,:Pub], basecase_solution.p_g .+ ramp_range)
-    @constraint(m, ramp_up[g in Gonline], p_gk[g] <= pg_ub[g])
-    # direction "<=" of this is important in duals computation
-    @constraint(m, ramp_down[g in Gonline], - p_gk[g] <= - pg_lb[g])
+    for g in Gonline
+        set_lower_bound(p_gk[g], pg_lb[g])
+        set_upper_bound(p_gk[g], pg_ub[g])
+    end
     println("minutes_since_base in solve_contingency: ", minutes_since_base)
     
     # enforce out of service generators
@@ -915,6 +945,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         @constraint(m, non_anticipativity_con[g=1:nrow(psd.G)],
                     p_g0[g] - basecase_solution.p_g[g] == aux_slack_gk[g])
     else
+        # these are implicitly enforced now
         #@constraint(m, non_anticipativity_con[g=1:nrow(psd.G)], p_g0[g] == basecase_solution.p_g[g])
     end
     
@@ -1031,30 +1062,28 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         obj_grad = 2 * quadratic_relaxation_k * (basecase_solution.p_g[g] - JuMP.value.(p_g0))
     else
         if has_duals(m)
-            # obj_grad = JuMP.dual.(non_anticipativity_con)
+            # get correct size and zero out
             obj_grad = 0.0 * basecase_solution.p_g
 
-            duals_ramp = JuMP.dual.(ramp_down)
             for g in Gonline
-              # sensitivity w.r.t. basecase pg only when ramping was enforced; otherwise, the generator hit the 
-              # lb and the sensitivity is zero, meaning zero change in recourse when master changes basecase pg.
-              if basecase_solution.p_g[g] - ramp_range[g] == pg_lb[g]
-                obj_grad[g] += duals_ramp[g]
-              end
-            end
-            duals_ramp = JuMP.dual.(ramp_up)            
-            for g in Gonline
-              #sensitivity w.r.t. basecase pg - see above note
-              if basecase_solution.p_g[g] + ramp_range[g] == pg_ub[g]
-                obj_grad[g] += duals_ramp[g]
-              end
-            end
+                # sensitivities for zero ramps remain zero
+                ramp_range[g]<=0.0 && continue
+                
+                # sensitivity w.r.t. basecase pg only when ramping was enforced; otherwise, the generator hit the 
+                # lb and the sensitivity is zero, meaning zero change in recourse when master changes basecase pg.
+                if basecase_solution.p_g[g] - ramp_range[g] == pg_lb[g]
+                    dual_ramp = JuMP.dual(JuMP.LowerBoundRef(p_gk[g]))
+                    obj_grad[g] += dual_ramp
+                    println("rampp down lb gen ", g, " dual is ", dual_ramp, " ramprange is ", ramp_range[g], " Bus-BusUnitNum: ", psd.G[g,:Bus], " ", psd.G[g, :BusUnitNum], " Ub is ", psd.G[g, :Pub], " RampRate is ", psd.G[g, :RampRate], "  p_gk val and lb ", JuMP.value(p_gk[g]), " ", pg_lb[g], " base p_g ", basecase_solution.p_g[g])
 
-            # check sign consistency before using these duals; JuMP does not use the same
-            # duality conventions as most OR modeling software
-            #println("PriDec rec grad non_anti  ", JuMP.dual.(non_anticipativity_con))
-            #println("PriDec rec grad ramp_up   ", JuMP.dual.(ramp_up))
-            #println("PriDec rec grad ramp_down ", JuMP.dual.(ramp_down))
+               end
+               #sensitivity w.r.t. basecase pg - see above note
+               if basecase_solution.p_g[g] + ramp_range[g] == pg_ub[g]
+                   dual_ramp = JuMP.dual(JuMP.UpperBoundRef(p_gk[g]))
+                   obj_grad[g] += dual_ramp
+                   println("rampp up ub gen ", g, " dual is ", dual_ramp, " ramprange is ", ramp_range[g], " Bus-BusUnitNum: ", psd.G[g,:Bus], " ", psd.G[g, :BusUnitNum], " Ub is ", psd.G[g, :Pub], " RampRate is ", psd.G[g, :RampRate], "  p_gk val and ub ", JuMP.value(p_gk[g]), " ", pg_ub[g], " base p_g ", basecase_solution.p_g[g])
+              end
+            end
         else
             obj_grad = nothing
         end
