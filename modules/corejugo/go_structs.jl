@@ -30,6 +30,7 @@ struct SCACOPFdata
     Gn::Vector{Vector{Int}}
     K_outidx::Vector{Int}
     RefBus::Int
+    Con_RefBus::Vector{Vector{Int}}
     
     # generator cost in epigraph form
     G_epicost_slope::Vector{Vector{Float64}}
@@ -56,6 +57,8 @@ struct SCACOPFdata
         else
             RefBus = 1
         end
+        Con_RefBus = make_contingency_RefBuses(contingencies, G, N, L, T, G_Nidx)
+
         if G[1,:CTYP] == 1
             # Not required with polynomial cost function
             G_epicost_slope = Vector{Vector{Float64}}[]
@@ -76,7 +79,7 @@ struct SCACOPFdata
         cont_labels = contingencies[!,:LABEL]
         return new(MVAbase, N, L, T, SSh, G, K, P, DELTA,
                    L_Nidx, T_Nidx, SSh_Nidx, G_Nidx, Lidxn, Lin, Tidxn,
-                   Tin, SShn, Gn, K_outidx, RefBus,
+                   Tin, SShn, Gn, K_outidx, RefBus, Con_RefBus,
                    G_epicost_slope, G_epicost_intercept, a, b,
                    gens_identifiers, cont_labels)
     end
@@ -143,6 +146,116 @@ struct SCACOPFdata
     
 end
 
+# function to create the set of reference buses for each contingency
+
+function make_contingency_RefBuses(contingencies::DataFrame, G::DataFrame, N::DataFrame,
+                                    L::DataFrame, T::DataFrame, 
+                                    G_Nidx::Vector{Int})::Vector{Vector{Int}}
+    # Initialize a vector of integer vectors to store the reference bus for each contingency
+    Refbuses = Vector{Vector{Int}}(undef, size(contingencies)[1])
+
+    # Get the list of unique generator bus IDs from the power system data
+    gen_bus_id = unique(G.Bus)
+
+    # Loop through each contingency case
+    for k = 1:length(contingencies.CON)
+        confb = Int[]       # From buses
+        contb = Int[]       # To buses
+        conskt = Vector{Vector{Int64}}()  # Each entry stores a vector of circuit IDs
+
+        for i in 1:length(contingencies.CON[k])
+            con = contingencies.CON[k][i]
+
+            if hasproperty(con, :FromBus)
+                # Find existing index where (FromBus, ToBus) matches
+                idx = findfirst(j -> confb[j] == con.FromBus && contb[j] == con.ToBus, eachindex(confb))
+
+                if isnothing(idx)
+                    # First time we see this (FromBus, ToBus) pair → create new entry
+                    push!(confb, con.FromBus)
+                    push!(contb, con.ToBus)
+                    push!(conskt, [parse(Int, con.Ckt)])   # Start new vector
+                else
+                    # Pair already exists → append to that inner vector
+                    push!(conskt[idx], parse(Int, con.Ckt))
+                end
+            end
+        end 
+
+        # Create a new graph representing the network topology.
+        # Number of vertices = total number of lines + total number of transformers.
+        g = Graph(length(N.Bus))
+
+        # ---------------------------
+        # Add transmission line edges
+        # ---------------------------
+        for i = 1:length(L.From)
+            # Find all indices where both FromBus and ToBus match
+            idxfb = findall(x -> x == L.From[i], confb)
+            idxtb = findall(x -> x == L.To[i], contb)
+            idx = intersect(idxfb, idxtb)
+            if isempty(idx)
+                # No existing edge — add it directly
+                add_edge!(g, L.From[i], L.To[i])
+            else
+                if !(parse(Int, L.CktID[i]) in conskt[idx[:]][1] )
+                    add_edge!(g, L.From[i], psd.L.To[i])
+                end
+            end
+        end
+
+        # ---------------------------
+        # Add transformer connections
+        # ---------------------------
+        for i = 1:length(T.From)
+            # Find all indices where both FromBus and ToBus match            
+            idxfb = findall(x -> x == T.From[i], confb)
+            idxtb = findall(x -> x == T.To[i], contb)
+            idx = intersect(idxfb, idxtb)
+            if isempty(idx)
+                # No existing edge — add it directly
+                add_edge!(g, T.From[i], T.To[i])
+            else
+                if !(parse(Int, T.CktID[i]) in conskt[idx[:]][1] )
+                    add_edge!(g, T.From[i], T.To[i])
+                end            
+            end
+
+        end
+
+        # ---------------------------
+        # Identify islands (connected components)
+        # ---------------------------
+        # Each connected component corresponds to an electrical island after the contingency
+        islands = connected_components(g)
+        islands = filter(x -> length(x) > 1, islands)
+
+        # Initialize the reference bus list for this contingency
+        Refbuses[k] = Int[]
+
+        # Loop through each island to determine a reference bus
+        for is = 1:length(islands)
+
+            # Find which generator buses belong to this island
+            island_gens = intersect(islands[is], gen_bus_id)
+
+            # If no generators exist in this island, choose the first bus as reference
+            if length(island_gens) == 0
+                push!(Refbuses[k], islands[is][1])
+            else
+                # Otherwise, find the generator in this island with the highest 'Pub' (likely active power)
+                # 1. Find indices in G.Bus corresponding to these generator buses
+                all_indices = vcat([findall(x -> x == val, G.Bus) for val in island_gens]...)
+
+                # 2. Push the bus index (mapped through G_Nidx) with the maximum Pub value
+                push!(Refbuses[k], G_Nidx[all_indices[argmax(G[all_indices, :Pub])]])
+            end
+        end
+    end
+    return Refbuses
+end
+
+
 # function to check solution dimensions
 
 function check_solution_dimensions(psd::SCACOPFdata, 
@@ -180,24 +293,26 @@ mutable struct BasecaseSolution <: SubproblemSolution
     # objective information
     base_cost::Union{Float64, Nothing}
     recourse_cost::Union{Float64, Nothing}
-    
+    total_objective::Union{Float64, Nothing}
+
     # constructor
     function BasecaseSolution(psd::SCACOPFdata, 
                               v_n::Vector{Float64}, theta_n::Vector{Float64},
                               b_s::Vector{Float64},
                               p_g::Vector{Float64}, q_g::Vector{Float64},
                               base_cost::Union{Float64, Nothing},
-                              recourse_cost::Union{Float64, Nothing})
+                              recourse_cost::Union{Float64, Nothing},
+                              total_objective::Union{Float64, Nothing}) #added total obj
         check_solution_dimensions(psd, v_n, theta_n, b_s, p_g, q_g)
         return new(hash(psd), v_n, theta_n, b_s, p_g, q_g, base_cost,
-                   recourse_cost)
+                   recourse_cost, total_objective)
     end
     
     # basic constructor (allocate to then fill)
     function BasecaseSolution(psd::SCACOPFdata)
         vec(field::Symbol) = Vector{Float64}(undef, nrow(getfield(psd, field)))
         return new(hash(psd), vec(:N), vec(:N), vec(:SSh), vec(:G), vec(:G),
-                   nothing, nothing)
+                   nothing, nothing, nothing)
     end
 
 end

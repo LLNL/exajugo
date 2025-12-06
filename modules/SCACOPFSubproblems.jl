@@ -138,7 +138,7 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     return BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                             convert(Vector{Float64}, JuMP.value.(b_s)),
                             JuMP.value.(p_g), JuMP.value.(q_g),
-                            0.0, 0.0),
+                            0.0, 0.0, 0.0),
            summary
     
 end
@@ -146,16 +146,25 @@ end
 # function to solve base case, possibly with recourse approximations
 
 function solve_basecase(psd::SCACOPFdata, NLSolver;
-                       recourse_f::T=nothing,   # recourse function value
-                       recourse_g::T=nothing,   # recourse function gradient
-                       recourse_H::T=nothing,   # recourse function hessian
-                       previous_solution::Union{Nothing,
-                                                BasecaseSolution}=nothing,
-                       output_dir::Union{Nothing, String} = nothing
-                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
+#                       recourse_f::T=nothing,   # recourse function value
+#                       recourse_g::T=nothing,   # recourse function gradient
+#                       recourse_H::T=nothing,   # recourse function hessian
+                        recourse_f::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function value
+                        recourse_g::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function gradient
+                        recourse_H::Union{Nothing, Vector{<:Function}}=nothing,   # recourse function hessian
+                        previous_solution::Union{Nothing,
+                        BasecaseSolution}=nothing,
+                        output_dir::Union{Nothing, String} = nothing,
+                        use_opt::Bool=false
+#                       )::BasecaseSolution where {T <: Union{Nothing, Function}}
+                      )::Tuple{BasecaseSolution, Model}
     
     # get primal starting point
-    x0 = get_primal_starting_point(psd, previous_solution)
+    if use_opt
+        x0 = get_primal_starting_point(psd, previous_solution, opt = NLSolver)
+    else
+        x0 = get_primal_starting_point(psd, previous_solution)
+    end
     
     # create model
     m = Model(NLSolver)
@@ -240,22 +249,58 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
     # contingency penalty
     if isnothing(recourse_f)
         contingency_penalty = 0.0
+       #  write_to_file(m, "no_cont_base_case_model.nl")
+
     else
-        JuMP.register(m, :recourse_f, nrow(psd.G),
-                      recourse_f, recourse_g, recourse_H)
-        contingency_penalty = @NLexpression(m, recourse_f(p_g...))
-    end
-    
+      #  JuMP.register(m, :recourse_f, nrow(psd.G),
+      #                recourse_f, recourse_g, recourse_H)
+      #  contingency_penalty = @NLexpression(m, recourse_f(p_g...))
+      #write_to_file(m, "cont_base_case_model.nl")
+
+        # Register each function
+
+        n = nrow(psd.G)
+        p_g_vars = Dict{Int, JuMP.VariableRef}()
+
+        for i in eachindex(p_g)
+             p_g_vars[i] = p_g[i]# @variable(m, base_name="p_g_$i")
+        end
+
+        for i in eachindex(p_g)
+            funcname = Symbol("recourse_f_", i)
+            f = recourse_f[i]
+            @eval function $(funcname)(x)
+		         $f(x)
+            end
+            JuMP.register(m, funcname, 1, recourse_f[i], recourse_g[i], recourse_H[i])
+        end
+ 
+        sum_expr = 0.0 
+        for i in eachindex(p_g)
+            sum_expr += recourse_f[i](p_g_vars[i])  # or whatever quadratic term you want
+        end
+        contingency_penalty = @NLexpression(m, sum_expr)
+    end 
+
     # declare objective
-    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
-               (1-psd.delta)*contingency_penalty)
-    
+    #@NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
+    #           (1-psd.delta)*contingency_penalty)
+
+    # fixme
+    @NLobjective(m, Min, production_cost + psd.delta*basecase_penalty +
+                 contingency_penalty)
+
+    #write_to_file(m, "base_case_model.nl")
+    #write_to_file(m, "base_case_model.lp")
+
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
        JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
-        error("solver failed to find a feasible solution.")
+       #Uncomment this line of code
+       # error("solver failed to find a feasible solution.")
+       println("solver failed to find a feasible solution.")
     end
     
     # objective breakdown
@@ -263,16 +308,51 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost   
 
+    # when solving the master, we need the total objective at the optimum
+    total_objective  = JuMP.objective_value(m)
+
+    rec_quadr_approx = JuMP.value(contingency_penalty)
+    println("master Obj for PriDec: objective=", total_objective, "  base_cost=", base_cost, "  recourse=", recourse_cost, " recourse quadr term=", rec_quadr_approx)
+
+    pgval = JuMP.value.(p_g)
+
+    # fixme/deleteme just some checking and postprocessing code 
+    #for g=1:nrow(psd.G)
+    #
+    #  if abs(pgval[g]-psd.G[g,:Plb])<1e-6
+    #    diff = pgval[g]-psd.G[g,:Plb]
+    #    pgval[g] = psd.G[g,:Plb]
+    #    println("masterr lb close: gen ", g, "  pg=", pgval[g], "  diff=", diff)       
+    #  end
+    #  if abs(pgval[g]-psd.G[g,:Pub])<1e-6
+    #    diff = -pgval[g]+psd.G[g,:Pub]
+    #    pgval[g] = psd.G[g,:Pub]
+    #    println("masterr ub close: gen ", g, "  pg=", pgval[g], "  diff=", diff)
+    #  end
+    #end
+
     solution = BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                 convert(Vector{Float64}, JuMP.value.(b_s)),
-                                JuMP.value.(p_g), JuMP.value.(q_g),
-                                base_cost, recourse_cost)
+                                pgval, JuMP.value.(q_g),
+                                base_cost, recourse_cost, total_objective)
 
     # write the information about the system
     if output_dir !== nothing
         if !ispath(output_dir)
             mkpath(output_dir)
         end
+
+        write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "Basecase status", string(JuMP.termination_status(m)))
+
+
+        iters =JuMP.barrier_iterations(m)
+        write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "Basecase solver iteration count", string(iters))
+        # if iters > 120
+        #     write_opt_status(splitdir(output_dir)[1], 
+        #                         "Summary.txt", "", "Basecase solver took " * string(iters) * " iterations to converge.")
+        # end
 
         write_solution(output_dir, psd, solution, filename = "/Basecase_solution.txt")
 
@@ -291,8 +371,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
                         JuMP.value.(sslack_li), JuMP.value.(sslack_ti))
     end
 
-    # return solution
-    return solution
+    return solution, m
     
 end
 
@@ -300,13 +379,18 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                        previous_solution::Union{Nothing,
                                                 BasecaseSolution}=nothing,
                        quadratic_relaxation_k::Float64=Inf,
-                       minutes_since_base::Float64=1.0,
+                       minutes_since_base::Float64=15.0,
                        use_huber_like_penalty::Bool=true,
-                       output_dir::Union{Nothing, String} = nothing
+                       output_dir::Union{Nothing, String} = nothing,
+                       use_opt::Bool=false
                        )::SCACOPFsolution 
 
     # get primal starting point
-    x0 = get_primal_starting_point(psd, previous_solution)
+    if use_opt
+        x0 = get_primal_starting_point(psd, previous_solution, opt = NLSolver)
+    else
+        x0 = get_primal_starting_point(psd, previous_solution)
+    end
 
     # create model
     m = Model(NLSolver)
@@ -460,7 +544,12 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
                                  psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Line)], 
                                  psd.K[k,:IDout][findall(psd.K[k,:ConType][:] .== :Transformer)])
 
-        x0 = get_primal_starting_point(psd, con)
+
+        if use_opt
+            x0 = get_primal_starting_point(psd, con, opt = NLSolver)
+        else
+            x0 = get_primal_starting_point(psd, con)
+        end
 
         # contingency variables starting values
         for n=1:nrow(psd.N)
@@ -490,7 +579,9 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         end
         
         # fix angle at reference bus to zero
-        JuMP.fix(theta_nk[psd.RefBus, k], 0.0, force=true)
+        for con_RB=1:length(psd.Con_RefBus[k])
+            JuMP.fix(theta_nk[psd.Con_RefBus[k][con_RB], k], 0.0, force=true)
+        end
 
         # add power flow constraints
         addpowerflowcons!(m, v_nk[:,k], theta_nk[:,k], p_lik[:,:,k], q_lik[:,:,k], p_tik[:,:,k], 
@@ -571,35 +662,54 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         end
     end
     
+    mag_para = 1e-10
+    amg_para = 1e-10
+    b_sk_para = 1e-10
+
     # declare objective
     if !use_huber_like_penalty
+        voltages_mag_reg = @expression(m, mag_para * sum(v_nk[n] * v_nk[n] for n=1:nrow(psd.N)))
+        voltages_ang_reg = @expression(m, amg_para * sum(theta_nk[n] * theta_nk[n] for n=1:nrow(psd.N)))
+        b_sk_reg =         @expression(m, b_sk_para * sum(b_sk[s] * b_sk[s] for s=1:nrow(psd.SSh)))
+
         @objective(m, Min, production_cost + psd.delta * basecase_penalty +
                             (1-psd.delta)*(1/krow) * ( sum( cp for cp in contingency_penalty) + 
-                            sum( qrt for qrt in quadratic_relaxation_term)))
+                            sum( qrt for qrt in quadratic_relaxation_term)) +
+                            voltages_mag_reg + voltages_ang_reg + b_sk_reg)
     else
+        voltages_mag_reg = @NLexpression(m, mag_para * sum(v_nk[n] * v_nk[n] for n=1:nrow(psd.N)))
+        voltages_ang_reg = @NLexpression(m, amg_para * sum(theta_nk[n] * theta_nk[n] for n=1:nrow(psd.N)))
+        b_sk_reg =         @NLexpression(m, b_sk_para * sum(b_sk[s] * b_sk[s] for s=1:nrow(psd.SSh)))
+
         @NLobjective(m, Min, production_cost + psd.delta * basecase_penalty +
                               (1-psd.delta)*(1/krow) * ( sum( cp for cp in contingency_penalty) + 
-                              sum( qrt for qrt in quadratic_relaxation_term)))
+                              sum( qrt for qrt in quadratic_relaxation_term)) +
+                              voltages_mag_reg + voltages_ang_reg + b_sk_reg)
     end
 
     # attempt to solve SCACOPF
     JuMP.optimize!(m)
+    failed_conv = false
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
         JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
         JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
-         error("solver failed to find a feasible solution.")
+        #    Uncomment this line of code
+            # error("solver failed to find a feasible solution.")
+            println("solver failed to find a feasible solution.")
+            failed_conv = true
     end
 
     # objective breakdown
     base_cost = JuMP.value(production_cost) +
                 psd.delta*JuMP.value(basecase_penalty)
     recourse_cost = JuMP.objective_value(m) - base_cost
+    total_objective = JuMP.objective_value(m)
 
     # Intial construction of the SCACOPF solution
     solution = SCACOPFsolution(psd, BasecaseSolution(psd, JuMP.value.(v_n), JuMP.value.(theta_n),
                                                     convert(Vector{Float64}, JuMP.value.(b_s)),
                                                     JuMP.value.(p_g), JuMP.value.(q_g),
-                                                    base_cost, recourse_cost))
+                                                    base_cost, recourse_cost, total_objective))
 
     # Add contingency solutions                                                        
     for k = 1:nrow(psd.K)
@@ -625,6 +735,9 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
         cont_pen = Vector{Float64}()
         quad_pen = Vector{Float64}()
         for k = 1:nrow(psd.K)
+
+            write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "SCACOPF status", string(JuMP.termination_status(m)))
             
             if k == 1
                 write_ramp_rate(output_dir, "/SCACOPF_ramp_rate.txt", psd::SCACOPFdata, 
@@ -644,6 +757,15 @@ function solve_SC_ACOPF(psd::SCACOPFdata, NLSolver;
             push!(cont_pen, JuMP.value(contingency_penalty[k]))
             push!(quad_pen, JuMP.value(quadratic_relaxation_term[k]))            
         end
+
+        if failed_conv
+            write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "", "solver failed to find a feasible solution.")
+        end
+
+        iters =JuMP.barrier_iterations(m)
+        write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "SCACOPF solver iteration count", string(iters))
 
         write_solution(output_dir, psd, solution, basecase_filename = "/SCACOPF_basecase.txt",
                         contingency_filename = "/SCACOPF_contingency.txt")
@@ -676,9 +798,11 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
                                              where {T<:SubproblemSolution} =
                                              nothing,
                           quadratic_relaxation_k::Float64=Inf,
-                          minutes_since_base::Float64=1.0,
+                          minutes_since_base::Float64=15.0,
                           use_huber_like_penalty::Bool=true,
-                          output_dir::Union{Nothing, String} = nothing)::ContingencySolution
+                          output_dir::Union{Nothing, String} = nothing,
+                          use_opt::Bool=false
+                          )::ContingencySolution
     
     # check we are given a valid contingency index
     if k <= 0 || k > nrow(psd.K)
@@ -697,7 +821,8 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
                             minutes_since_base=minutes_since_base,
                             use_huber_like_penalty=use_huber_like_penalty,
                             output_dir = output_dir,
-                            cont_idx = k)
+                            cont_idx = k,
+                            use_opt = use_opt)
     
     # override fields for contingencies and return (this is TEMPORARY... only for backwards
     # compatibility)
@@ -710,22 +835,44 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
     
 end
 
+const lambda_moreau = 1e-6
+
+# Notes on the Moreau envelope of optimal value of NLP
+#  v(p_g0) = min c(p_gk,y) s.t. p_g0-ramp <= p_gk <= p_g0+ramp, h(p_g_k,y)=0, l<=y<=u
+#
+# The Moreau envelope ev(p_g0) can be computed by adding an extra variable, z_gk, and solving a related NLP
+#   v(p_g0) = min   c(p_gk,y) + 1/(2*lambda)||z_gk-p_g0||^2
+#              s.t. z_gk-ramp <= p_gk <= z_gk+ramp, h(p_g_k,y)=0, l<=y<=u
+# Remark that v is Lipschitz continuous and regular and 1/lambda*(p_g0-z_gk) is a Clarke subgradient
+
+# Parameter quadratic_relaxation_k controls the type of relaxation used in the contingency
+# subproblem. Supported values are:  
+#   v=+inf : no relaxation, non-anticipativity constraints are enforced exactly
+#   v in (0,+inf) : quadratic relaxation with penalty 'v'
+#   v=-2: Moreau envelope
 function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                           basecase_solution::BasecaseSolution, NLSolver;
                           previous_solution::Union{Nothing, T} 
                                              where {T<:SubproblemSolution} =
                                              nothing,
                           quadratic_relaxation_k::Float64=Inf,
-                          minutes_since_base::Float64=1.0,
+                          minutes_since_base::Float64=15.0,
                           use_huber_like_penalty::Bool=true,
                           output_dir::Union{Nothing, String} = nothing,
-                          cont_idx::Union{Nothing, Int64} = nothing)::ContingencySolution
-    
+                          cont_idx::Union{Nothing, Int64} = nothing,
+                          use_opt::Bool=false)::ContingencySolution
+    k = cont_idx
 
-    quadratic_relaxation_k > 0 || error("quadratic relaxation penalty should be positive")
+quadratic_relaxation_k = -2
+
+    quadratic_relaxation_k > 0 || quadratic_relaxation_k == -2 || error("method of recourse relaxation not recognized")
     
     # get primal starting point
-    x0 = get_primal_starting_point(psd, con, basecase_solution, previous_solution)
+    if use_opt
+        x0 = get_primal_starting_point(psd, con, basecase_solution, previous_solution, opt = NLSolver)
+    else
+        x0 = get_primal_starting_point(psd, con, basecase_solution, previous_solution)
+    end
     
     # create model
     m = Model(NLSolver)
@@ -742,8 +889,16 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               psd.SSh[s,:Bub], start=x0[:b_sk][s])
     @variable(m, p_gk[g=1:nrow(psd.G)], start = x0[:p_gk][g])
     @variable(m, q_gk[g=1:nrow(psd.G)], start = x0[:q_gk][g])
-    @variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
-              start=x0[:p_gk][g])       # clone of first stage variable
+
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
+      # clone of first stage variable, but only when quadratic relaxation
+      # for non-anticipativity constraints is used. No cloning by default, to
+      # avoid introducing additional equality constraints; instead p_g0 is
+      # treated as a parameter in the ramping constraints, which are also
+      # merged with the bounds constraints
+      @variable(m, psd.G[g,:Plb] <= p_g0[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
+                start=x0[:p_gk][g])
+    end
     @variable(m, pslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_nk][n])
     @variable(m, pslackp_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackp_nk][n])
     @variable(m, qslackm_nk[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackm_nk][n])
@@ -752,9 +907,13 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
               start=x0[:sslack_lik][l,i])
     @variable(m, sslack_tik[t=1:nrow(psd.T), i=1:2] >= 0,
               start=x0[:sslack_tik][t,i])
-    
+
+    println("solve_contingency k=", k, " psd.Con_RefBus=", psd.Con_RefBus)
+    flush(stdout)
     # fix angle at reference bus to zero
-    JuMP.fix(theta_nk[psd.RefBus], 0.0, force=true)
+    for con_RB=1:length(psd.Con_RefBus[k])
+        JuMP.fix(theta_nk[psd.Con_RefBus[k][con_RB]], 0.0, force=true)
+    end
     
     # add power flow constraints
     addpowerflowcons!(m, v_nk, theta_nk, p_lik, q_lik, p_tik, q_tik, b_sk,
@@ -765,13 +924,39 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     Gonline = if length(con.generators_out)>0 setdiff(1:nrow(psd.G), con.generators_out)
               else 1:nrow(psd.G)
               end
-
-    @constraint(m, [g in Gonline], psd.G[g,:Plb] <= p_gk[g] <= psd.G[g,:Pub])
+    #this is now merged with the ramping constraints
+    #@constraint(m, [g in Gonline], psd.G[g,:Plb] <= p_gk[g] <= psd.G[g,:Pub])
     @constraint(m, [g in Gonline], psd.G[g,:Qlb] <= q_gk[g] <= psd.G[g,:Qub])
-    @constraint(m, [g in Gonline], p_gk[g] - p_g0[g] <=
-                                   psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
-    @constraint(m, [g in Gonline], p_g0[g] - p_gk[g] <=
-                                   psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
+
+
+    # Ramping constraints are merged with generation bounds to avoid introducing linear
+    # dependence in the constraints
+    #
+    # Original ramping constraints:
+    #@constraint(m, ramp_up[g in Gonline], p_gk[g] - basecase_solution.p_g[g] <= psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
+    #@constraint(m, ramp_down[g in Gonline], basecase_solution.p_g[g] - p_gk[g] <= psd.G[g, :Pub] * psd.G[g, :RampRate] * minutes_since_base)
+
+    # Merge bound constraints and ramping constraints and impose them as lower and upper bounds only
+    ramp_range = psd.G[:, :Pub] .* psd.G[:, :RampRate] * minutes_since_base
+    pg_lb = max.(psd.G[:,:Plb], basecase_solution.p_g .- ramp_range)
+    pg_ub = min.(psd.G[:,:Pub], basecase_solution.p_g .+ ramp_range)
+    if quadratic_relaxation_k == -2
+      println("Using Moreau envelope")
+      @variable(m, z_gk[g in Gonline])
+      @constraint(m, ramp_up[g in Gonline], z_gk[g] - ramp_range[g] <= p_gk[g])
+      @constraint(m, ramp_down[g in Gonline], p_gk[g] <= z_gk[g] + ramp_range[g])
+      for g in Gonline
+        set_lower_bound(p_gk[g], pg_lb[g])
+        set_upper_bound(p_gk[g], pg_ub[g])
+      end
+
+    else 
+      for g in Gonline
+        set_lower_bound(p_gk[g], pg_lb[g])
+        set_upper_bound(p_gk[g], pg_ub[g])
+      end
+    end
+    println("minutes_since_base in solve_contingency: ", minutes_since_base)
     
     # enforce out of service generators
     if length(con.generators_out) > 0
@@ -782,17 +967,25 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     end
     
     # coupling constraints (relaxed non-anticipativity)
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
+        # quadratic penalization of the non-anticipativity constraints
         @variable(m, aux_slack_gk[g=1:nrow(psd.G)])
         @constraint(m, non_anticipativity_con[g=1:nrow(psd.G)],
                     p_g0[g] - basecase_solution.p_g[g] == aux_slack_gk[g])
+    elseif quadratic_relaxation_k == -2
+       # Moreau envelope: z_gk and constraints alrealdy added; the extra objective term
+       # is added later
+
     else
-        @constraint(m, non_anticipativity_con[g=1:nrow(psd.G)], p_g0[g] == basecase_solution.p_g[g])
+        # exact enforcement via (merged) bounds, nothing to do
+        # these are implicitly enforced now
+        #@constraint(m, non_anticipativity_con[g=1:nrow(psd.G)], p_g0[g] == basecase_solution.p_g[g])
     end
     
     # contingency penalty
     contingency_penalty = nothing
     if !use_huber_like_penalty
+        # println("Not using huber like penalty")
         contingency_penalty = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
         for n = 1:nrow(psd.N)
             add_to_expression!(contingency_penalty,
@@ -819,6 +1012,8 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
             add_to_expression!(contingency_penalty, psd.b[:S], sslack_tik[t,i])
         end
     else
+
+        # println("Using huber like penalty")
         # register Huber-like penalty functions
         hP = HuberLikePenalty(psd.a[:P], psd.b[:P],
                               2 * psd.a[:P] * (10.0/psd.MVAbase) + psd.b[:P], # slope at 10MW is max
@@ -850,7 +1045,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     end
     
     # quadratic relaxation term
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
         @assert length(aux_slack_gk) == nrow(psd.G)
         quadratic_relaxation_term = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
         for g = 1:length(aux_slack_gk)
@@ -858,33 +1053,103 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                                quadratic_relaxation_k,
                                aux_slack_gk[g], aux_slack_gk[g])
         end
+    elseif quadratic_relaxation_k == -2
+
+        quadratic_relaxation_term = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
+        # constant penalization coefficient is 1/(2lambda)
+
+        coeff_pen = 1/(2*lambda_moreau)
+        for g in Gonline
+            add_to_expression!(quadratic_relaxation_term,
+                               coeff_pen,
+                               z_gk[g], z_gk[g]);
+            add_to_expression!(quadratic_relaxation_term,
+                               coeff_pen * basecase_solution.p_g[g] * basecase_solution.p_g[g]);
+            add_to_expression!(quadratic_relaxation_term,
+                               -2*coeff_pen*basecase_solution.p_g[g],
+                               z_gk[g]);
+        end
     else
         quadratic_relaxation_term = 0.0
     end
+
+    mag_para = 1e-10
+    amg_para = 1e-10
+    b_sk_para = 1e-10
     
     # declare objective
     if !use_huber_like_penalty
-        @objective(m, Min, contingency_penalty + quadratic_relaxation_term)
+        voltages_mag_reg = @expression(m, mag_para * sum(v_nk[n] * v_nk[n] for n=1:nrow(psd.N)))
+        voltages_ang_reg = @expression(m, amg_para * sum(theta_nk[n] * theta_nk[n] for n=1:nrow(psd.N)))
+        b_sk_reg =         @expression(m, b_sk_para * sum(b_sk[s] * b_sk[s] for s=1:nrow(psd.SSh)))
+
+        @objective(m, Min, contingency_penalty + quadratic_relaxation_term +
+                     voltages_mag_reg + voltages_ang_reg + b_sk_reg)
     else
-        @NLobjective(m, Min, contingency_penalty + quadratic_relaxation_term)
+        voltages_mag_reg = @NLexpression(m, mag_para * sum(v_nk[n] * v_nk[n] for n=1:nrow(psd.N)))
+        voltages_ang_reg = @NLexpression(m, amg_para * sum(theta_nk[n] * theta_nk[n] for n=1:nrow(psd.N)))
+        b_sk_reg =         @NLexpression(m, b_sk_para * sum(b_sk[s] * b_sk[s] for s=1:nrow(psd.SSh)))
+
+        @NLobjective(m, Min, contingency_penalty + quadratic_relaxation_term +
+                     voltages_mag_reg + voltages_ang_reg + b_sk_reg)
     end
     
     # attempt to solve contingency subproblem
     JuMP.optimize!(m)
+    failed_conv = false
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
        JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
        JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
-        error("solver failed to find a feasible solution.")
+       #    Uncomment this line of code
+           # error("solver failed to find a feasible solution.")
+           println("solver failed to find a feasible solution.")
+           failed_conv = true
     end
     
     # compute gradient/subgradient
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
+        #quadratic penalization of non-anticipativity
         obj_grad = 2 * quadratic_relaxation_k * (basecase_solution.p_g[g] - JuMP.value.(p_g0))
+    elseif quadratic_relaxation_k == -2
+        # Moreau envelope
+        coeff_pen = 1/(2*lambda_moreau)
+        obj_grad = 0.0 * basecase_solution.p_g
+        for g in Gonline
+        
+          obj_grad[g] = 2*coeff_pen * (basecase_solution.p_g[g] - JuMP.value(z_gk[g]))
+
+          if abs(basecase_solution.p_g[g] - JuMP.value(z_gk[g]))>1e-6 && abs(ramp_range[g])>0
+            println("Moreau env at sol: g=", g, "\n  ",
+                    "p_g0 - z_gk = ", basecase_solution.p_g[g], " - ", JuMP.value(z_gk[g]), " = ", basecase_solution.p_g[g] - JuMP.value(z_gk[g]), "\n  ",
+                    "p_gk - z_gk = ", JuMP.value(p_gk[g]), " - ", JuMP.value(z_gk[g]), " = ", JuMP.value(p_gk[g]) - JuMP.value(z_gk[g]), "\n  ",
+                    "ramp[g]=", ramp_range[g])
+          end
+       end
     else
+        @assert quadratic_relaxation_k == Inf
         if has_duals(m)
-            obj_grad = JuMP.dual.(non_anticipativity_con)
-                       # check sign consistency before using these duals; JuMP does not use the same
-                       # duality conventions as most OR modeling software
+            # get correct size and zero out
+            obj_grad = 0.0 * basecase_solution.p_g
+
+            for g in Gonline
+                # sensitivities for zero ramps remain zero
+                ramp_range[g]<=0.0 && continue
+                
+                # sensitivity w.r.t. basecase pg only when ramping was enforced; otherwise, the generator hit the 
+                # lb and the sensitivity is zero, meaning zero change in recourse when master changes basecase pg.
+                if basecase_solution.p_g[g] - ramp_range[g] == pg_lb[g]
+                    dual_ramp = JuMP.dual(JuMP.LowerBoundRef(p_gk[g]))
+                    obj_grad[g] += dual_ramp
+                    println("rampp down lb gen ", g, " dual is ", dual_ramp, " ramprange is ", ramp_range[g], " Bus-BusUnitNum: ", psd.G[g,:Bus], " ", psd.G[g, :BusUnitNum], " Ub is ", psd.G[g, :Pub], " RampRate is ", psd.G[g, :RampRate], "  p_gk val and lb ", JuMP.value(p_gk[g]), " ", pg_lb[g], " base p_g ", basecase_solution.p_g[g])
+
+               end
+               #sensitivity w.r.t. basecase pg - see above note
+               if basecase_solution.p_g[g] + ramp_range[g] == pg_ub[g]
+                   dual_ramp = JuMP.dual(JuMP.UpperBoundRef(p_gk[g]))
+                   obj_grad[g] += dual_ramp
+                   println("rampp up ub gen ", g, " dual is ", dual_ramp, " ramprange is ", ramp_range[g], " Bus-BusUnitNum: ", psd.G[g,:Bus], " ", psd.G[g, :BusUnitNum], " Ub is ", psd.G[g, :Pub], " RampRate is ", psd.G[g, :RampRate], "  p_gk val and ub ", JuMP.value(p_gk[g]), " ", pg_ub[g], " base p_g ", basecase_solution.p_g[g])
+              end
+            end
         else
             obj_grad = nothing
         end
@@ -901,6 +1166,23 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
         if !ispath(output_dir)
             mkpath(output_dir)
         end
+
+        write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "Contingency subproblem status", string(JuMP.termination_status(m)))
+
+        if failed_conv
+            write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "", "solver failed to find a feasible solution.")
+        end
+
+        iters =JuMP.barrier_iterations(m)
+        write_opt_status(splitdir(output_dir)[1], 
+                                "Summary.txt", "Contingency solver iteration count", string(iters))
+        # if iters > 120
+        #     write_opt_status(splitdir(output_dir)[1], 
+        #                         "Summary.txt", "", "Contingency solver took " * string(iters) * " iterations to converge.")
+        # end
+
 
         if cont_idx == 1
             write_ramp_rate(output_dir, "/Contingency_ramp_rate.txt", psd::SCACOPFdata, 
@@ -943,7 +1225,7 @@ function solve_random_contingency(psd::SCACOPFdata, n_failures::Int,
                                                      where {T<:SubproblemSolution} =
                                                      nothing,
                                   quadratic_relaxation_k::Float64=Inf,
-                                  minutes_since_base::Float64=1.0,
+                                  minutes_since_base::Float64=15.0,
                                   use_huber_like_penalty::Bool=true)::ContingencySolution
     
     # generate random contingency

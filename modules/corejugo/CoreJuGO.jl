@@ -2,7 +2,9 @@
 
 module CoreJuGO
 
-using Printf, Random, DataFrames, CSV, Graphs, JuMP, Ipopt
+using Printf, Random, DataFrames, CSV, Graphs, JuMP, Ipopt, Graphs
+
+const MOI = JuMP.MOI
 
 export SCACOPFdata, enforce_bounds!, GenericContingency, isequal_struct,
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
@@ -12,7 +14,7 @@ export SCACOPFdata, enforce_bounds!, GenericContingency, isequal_struct,
        read_base_solution,
        number_of_connected_subsystems, split_on_connected_subsystems,
        write_slack, write_power_flow, write_power_flow_cons, write_ramp_rate,
-       write_cost
+       write_cost, write_opt_status
 
 include("go_structs.jl")
 include("instance_reader.jl")
