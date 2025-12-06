@@ -255,7 +255,7 @@ function solve_basecase(psd::SCACOPFdata, NLSolver;
       #  JuMP.register(m, :recourse_f, nrow(psd.G),
       #                recourse_f, recourse_g, recourse_H)
       #  contingency_penalty = @NLexpression(m, recourse_f(p_g...))
- #        write_to_file(m, "cont_base_case_model.nl")
+      #write_to_file(m, "cont_base_case_model.nl")
 
         # Register each function
 
@@ -835,6 +835,21 @@ function solve_contingency(psd::SCACOPFdata, k::Int,
     
 end
 
+const lambda_moreau = 1e-6
+
+# Notes on the Moreau envelope of optimal value of NLP
+#  v(p_g0) = min c(p_gk,y) s.t. p_g0-ramp <= p_gk <= p_g0+ramp, h(p_g_k,y)=0, l<=y<=u
+#
+# The Moreau envelope ev(p_g0) can be computed by adding an extra variable, z_gk, and solving a related NLP
+#   v(p_g0) = min   c(p_gk,y) + 1/(2*lambda)||z_gk-p_g0||^2
+#              s.t. z_gk-ramp <= p_gk <= z_gk+ramp, h(p_g_k,y)=0, l<=y<=u
+# Remark that v is Lipschitz continuous and regular and 1/lambda*(p_g0-z_gk) is a Clarke subgradient
+
+# Parameter quadratic_relaxation_k controls the type of relaxation used in the contingency
+# subproblem. Supported values are:  
+#   v=+inf : no relaxation, non-anticipativity constraints are enforced exactly
+#   v in (0,+inf) : quadratic relaxation with penalty 'v'
+#   v=-2: Moreau envelope
 function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                           basecase_solution::BasecaseSolution, NLSolver;
                           previous_solution::Union{Nothing, T} 
@@ -846,11 +861,11 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
                           output_dir::Union{Nothing, String} = nothing,
                           cont_idx::Union{Nothing, Int64} = nothing,
                           use_opt::Bool=false)::ContingencySolution
-    
-
     k = cont_idx
 
-    quadratic_relaxation_k > 0 || error("quadratic relaxation penalty should be positive")
+quadratic_relaxation_k = -2
+
+    quadratic_relaxation_k > 0 || quadratic_relaxation_k == -2 || error("method of recourse relaxation not recognized")
     
     # get primal starting point
     if use_opt
@@ -875,7 +890,7 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     @variable(m, p_gk[g=1:nrow(psd.G)], start = x0[:p_gk][g])
     @variable(m, q_gk[g=1:nrow(psd.G)], start = x0[:q_gk][g])
 
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
       # clone of first stage variable, but only when quadratic relaxation
       # for non-anticipativity constraints is used. No cloning by default, to
       # avoid introducing additional equality constraints; instead p_g0 is
@@ -925,9 +940,21 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     ramp_range = psd.G[:, :Pub] .* psd.G[:, :RampRate] * minutes_since_base
     pg_lb = max.(psd.G[:,:Plb], basecase_solution.p_g .- ramp_range)
     pg_ub = min.(psd.G[:,:Pub], basecase_solution.p_g .+ ramp_range)
-    for g in Gonline
+    if quadratic_relaxation_k == -2
+      println("Using Moreau envelope")
+      @variable(m, z_gk[g in Gonline])
+      @constraint(m, ramp_up[g in Gonline], z_gk[g] - ramp_range[g] <= p_gk[g])
+      @constraint(m, ramp_down[g in Gonline], p_gk[g] <= z_gk[g] + ramp_range[g])
+      for g in Gonline
         set_lower_bound(p_gk[g], pg_lb[g])
         set_upper_bound(p_gk[g], pg_ub[g])
+      end
+
+    else 
+      for g in Gonline
+        set_lower_bound(p_gk[g], pg_lb[g])
+        set_upper_bound(p_gk[g], pg_ub[g])
+      end
     end
     println("minutes_since_base in solve_contingency: ", minutes_since_base)
     
@@ -940,11 +967,17 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     end
     
     # coupling constraints (relaxed non-anticipativity)
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
+        # quadratic penalization of the non-anticipativity constraints
         @variable(m, aux_slack_gk[g=1:nrow(psd.G)])
         @constraint(m, non_anticipativity_con[g=1:nrow(psd.G)],
                     p_g0[g] - basecase_solution.p_g[g] == aux_slack_gk[g])
+    elseif quadratic_relaxation_k == -2
+       # Moreau envelope: z_gk and constraints alrealdy added; the extra objective term
+       # is added later
+
     else
+        # exact enforcement via (merged) bounds, nothing to do
         # these are implicitly enforced now
         #@constraint(m, non_anticipativity_con[g=1:nrow(psd.G)], p_g0[g] == basecase_solution.p_g[g])
     end
@@ -1012,13 +1045,29 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     end
     
     # quadratic relaxation term
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
         @assert length(aux_slack_gk) == nrow(psd.G)
         quadratic_relaxation_term = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
         for g = 1:length(aux_slack_gk)
             add_to_expression!(quadratic_relaxation_term,
                                quadratic_relaxation_k,
                                aux_slack_gk[g], aux_slack_gk[g])
+        end
+    elseif quadratic_relaxation_k == -2
+
+        quadratic_relaxation_term = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
+        # constant penalization coefficient is 1/(2lambda)
+
+        coeff_pen = 1/(2*lambda_moreau)
+        for g in Gonline
+            add_to_expression!(quadratic_relaxation_term,
+                               coeff_pen,
+                               z_gk[g], z_gk[g]);
+            add_to_expression!(quadratic_relaxation_term,
+                               coeff_pen * basecase_solution.p_g[g] * basecase_solution.p_g[g]);
+            add_to_expression!(quadratic_relaxation_term,
+                               -2*coeff_pen*basecase_solution.p_g[g],
+                               z_gk[g]);
         end
     else
         quadratic_relaxation_term = 0.0
@@ -1058,9 +1107,26 @@ function solve_contingency(psd::SCACOPFdata, con::GenericContingency,
     end
     
     # compute gradient/subgradient
-    if quadratic_relaxation_k < Inf
+    if quadratic_relaxation_k < Inf && quadratic_relaxation_k > 0
+        #quadratic penalization of non-anticipativity
         obj_grad = 2 * quadratic_relaxation_k * (basecase_solution.p_g[g] - JuMP.value.(p_g0))
+    elseif quadratic_relaxation_k == -2
+        # Moreau envelope
+        coeff_pen = 1/(2*lambda_moreau)
+        obj_grad = 0.0 * basecase_solution.p_g
+        for g in Gonline
+        
+          obj_grad[g] = 2*coeff_pen * (basecase_solution.p_g[g] - JuMP.value(z_gk[g]))
+
+          if abs(basecase_solution.p_g[g] - JuMP.value(z_gk[g]))>1e-6 && abs(ramp_range[g])>0
+            println("Moreau env at sol: g=", g, "\n  ",
+                    "p_g0 - z_gk = ", basecase_solution.p_g[g], " - ", JuMP.value(z_gk[g]), " = ", basecase_solution.p_g[g] - JuMP.value(z_gk[g]), "\n  ",
+                    "p_gk - z_gk = ", JuMP.value(p_gk[g]), " - ", JuMP.value(z_gk[g]), " = ", JuMP.value(p_gk[g]) - JuMP.value(z_gk[g]), "\n  ",
+                    "ramp[g]=", ramp_range[g])
+          end
+       end
     else
+        @assert quadratic_relaxation_k == Inf
         if has_duals(m)
             # get correct size and zero out
             obj_grad = 0.0 * basecase_solution.p_g
