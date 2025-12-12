@@ -41,13 +41,14 @@ struct SCACOPFdata
     
     # tables/data in original format -> needed for solution writing
     generators::DataFrame
+    loads::DataFrame
     cont_labels::Vector{String}
     
     # constructor from data frames
     function SCACOPFdata(MVAbase::Float64, N::DataFrame, L::DataFrame,
                          T::DataFrame, SSh::DataFrame, G::DataFrame,
                          K::DataFrame, P::DataFrame, generators::DataFrame,
-                         contingencies::DataFrame)
+                         loads::DataFrame, contingencies::DataFrame)
         makeup_ramp_rates!(G)
         L_Nidx, T_Nidx, SSh_Nidx, G_Nidx, Lidxn, Lin, Tidxn, Tin, SShn,
             Gn, K_outidx = indexsets(N, L, T, SSh, G, K)
@@ -73,12 +74,13 @@ struct SCACOPFdata
             a[P[i,:Slack]], b[P[i,:Slack]] = quadcoeffs(P, i)
         end
         gens_identifiers = generators[!,Symbol[:I,:ID]]
+        loads_identifiers = loads[!, Symbol[:I, :ID, :PL, :QL]]
         cont_labels = contingencies[!,:LABEL]
         return new(MVAbase, N, L, T, SSh, G, K, P, DELTA,
                    L_Nidx, T_Nidx, SSh_Nidx, G_Nidx, Lidxn, Lin, Tidxn,
                    Tin, SShn, Gn, K_outidx, RefBus,
                    G_epicost_slope, G_epicost_intercept, a, b,
-                   gens_identifiers, cont_labels)
+                   gens_identifiers, loads_identifiers, cont_labels)
     end
     
     # constructor from SCACOPF instance folder or RAW file
@@ -104,7 +106,7 @@ struct SCACOPFdata
                              activedsptables, costcurves, governorresponse,
                              contingencies, enforce_bounds_on_x0=enforce_bounds_on_x0)
             return SCACOPFdata(MVAbase, N, L, T, SSh, G, K, P,
-                               generators, contingencies)
+                               generators, loads, contingencies)
         elseif !isnothing(raw_filename)
             MVAbase, buses, loads, fixedbusshunts, generators, ntbranches,
                 tbranches, switchedshunts = readRAW(raw_filename)
@@ -127,7 +129,7 @@ struct SCACOPFdata
                                 contingencies,
                                 enforce_bounds_on_x0=enforce_bounds_on_x0)
                 return SCACOPFdata(MVAbase, N, L, T, SSh, G, K, P,
-                                generators, contingencies)
+                                generators, loads, contingencies)
             else
                 N, L, T, SSh, G, K, P =
                     GOfmt2params(MVAbase, buses, loads, fixedbusshunts, generators,
@@ -135,7 +137,7 @@ struct SCACOPFdata
                                 generatordsp, activedsptables, costcurves,
                                 enforce_bounds_on_x0=enforce_bounds_on_x0)
                 return SCACOPFdata(MVAbase, N, L, T, SSh, G, K, P,
-                                generators, DataFrame([String[], Symbol[], Contingency[]],
+                                generators, loads, DataFrame([String[], Symbol[], Contingency[]],
                                                         [:LABEL, :CTYPE, :CON]))
             end
         end
