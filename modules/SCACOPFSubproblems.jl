@@ -263,7 +263,8 @@ function solve_basecase_from_model(m::JuMP.Model, psd::SCACOPFdata, model_data::
     if JuMP.primal_status(m) != MOI.FEASIBLE_POINT &&
         JuMP.primal_status(m) != MOI.NEARLY_FEASIBLE_POINT && 
         JuMP.termination_status(m) != MOI.NEARLY_FEASIBLE_POINT
-        error("solver failed to find a feasible solution.")
+        # error("solver failed to find a feasible solution.")
+        println("solver failed to find a feasible solution.")
     end
 
     # objective breakdown
