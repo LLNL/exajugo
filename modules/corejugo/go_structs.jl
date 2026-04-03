@@ -74,7 +74,7 @@ struct SCACOPFdata
             a[P[i,:Slack]], b[P[i,:Slack]] = quadcoeffs(P, i)
         end
         gens_identifiers = generators[!,Symbol[:I,:ID]]
-        loads_identifiers = loads[!, Symbol[:I, :ID, :PL, :QL]]
+        loads_identifiers = loads[!, Symbol[:I, :ID, :STATUS, :PL, :QL]]
         cont_labels = contingencies[!,:LABEL]
         return new(MVAbase, N, L, T, SSh, G, K, P, DELTA,
                    L_Nidx, T_Nidx, SSh_Nidx, G_Nidx, Lidxn, Lin, Tidxn,
