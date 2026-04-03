@@ -5,7 +5,7 @@ module SCACOPFSubproblems
 ## elements to be exported
 
 export solve_base_power_flow, solve_basecase, solve_contingency, solve_random_contingency,
-       create_basecase_model, solve_basecase_from_model,
+       create_basecase_model, create_basecase_model_TSI, solve_basecase_from_model,
        solve_SC_ACOPF, 
        SCACOPFdata, GenericContingency, 
        SubproblemSolution, BasecaseSolution, ContingencySolution, SCACOPFsolution,
@@ -147,16 +147,18 @@ function solve_base_power_flow(psd::SCACOPFdata, NLSolver)
     
 end
 
-function create_basecase_model(psd::SCACOPFdata, NLSolver, x0::Dict;
+function create_basecase_model_TSI(psd::SCACOPFdata, x0::Dict;
                                recourse_f::T=nothing,   # recourse function value
                                recourse_g::T=nothing,   # recourse function gradient
                                recourse_H::T=nothing,   # recourse function hessian
             )::Tuple{Model, Dict} where {T <: Union{Nothing, Function}}
 
     # create model
-    m = Model(NLSolver)
+    m = Model()
 
     # base case variables
+    @variable(m, psd.G[g,:Plb] <= p_g[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
+    start=x0[:p_g][g])
     @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
     start=x0[:v_n][n])
     @variable(m, theta_n[n=1:nrow(psd.N)], start=x0[:theta_n][n])
@@ -166,8 +168,121 @@ function create_basecase_model(psd::SCACOPFdata, NLSolver, x0::Dict;
     @variable(m, q_ti[t=1:nrow(psd.T), i=1:2], start=x0[:q_ti][t,i])
     @variable(m, psd.SSh[s,:Blb] <= b_s[s=1:nrow(psd.SSh)] <=
     psd.SSh[s,:Bub], start=x0[:b_s][s])
+    @variable(m, psd.G[g,:Qlb] <= q_g[g=1:nrow(psd.G)] <= psd.G[g,:Qub],
+    start=x0[:q_g][g])
+    @variable(m, c_g[g=1:nrow(psd.G)], start=x0[:c_g][g])
+    @variable(m, pslackm_n[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackm_n][n])
+    @variable(m, pslackp_n[n=1:size(psd.N, 1)] >= 0, start = x0[:pslackp_n][n])
+    @variable(m, qslackm_n[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackm_n][n])
+    @variable(m, qslackp_n[n=1:size(psd.N, 1)] >= 0, start = x0[:qslackp_n][n])
+    @variable(m, sslack_li[l=1:nrow(psd.L), i=1:2] >= 0,
+    start=x0[:sslack_li][l,i])
+    @variable(m, sslack_ti[t=1:nrow(psd.T), i=1:2] >= 0,
+    start=x0[:sslack_ti][t,i])
+
+    # fix angle at reference bus to zero
+    JuMP.fix(theta_n[psd.RefBus], 0.0, force=true)
+
+    # add power flow constraints
+    addpowerflowcons!(m, v_n, theta_n, p_li, q_li, p_ti, q_ti, b_s, p_g, q_g,
+    pslackm_n, pslackp_n, qslackm_n, qslackp_n,
+    sslack_li, sslack_ti, psd)
+
+    if psd.G.CTYP[1] == 1
+        println("Not using the epigraph formulation")
+        c_g = Vector{JuMP.QuadExpr}(undef, size(psd.G, 1))
+        # production cost (continous quadratic formulation)
+        for g = 1:size(psd.G, 1)
+            c_g[g] = QuadExpr( AffExpr(psd.G.COST[g], p_g[g] => psd.G.COSTLIN[g]   * psd.MVAbase),
+                                UnorderedPair(p_g[g], p_g[g]) => psd.G.COSTQUAD[g] * psd.MVAbase * psd.MVAbase, )
+        end
+    else
+        println("Using the epigraph formulation")
+        # production cost (epigraph formulation)
+        for g = 1:size(psd.G, 1)
+            slope_gi = psd.G_epicost_slope[g]
+            intercept_gi = psd.G_epicost_intercept[g]
+            @constraint(m, [i=1:length(slope_gi)],
+                        c_g[g] >= slope_gi[i]*p_g[g] + intercept_gi[i])
+        end
+    end
+    production_cost = @expression(m, sum(c_g[g] for g=1:nrow(psd.G)))
+
+    # base case penalty
+    basecase_penalty = JuMP.GenericQuadExpr(JuMP.AffExpr(0))
+    for n = 1:nrow(psd.N)
+        add_to_expression!(basecase_penalty,
+                           psd.a[:P], pslackm_n[n], pslackm_n[n])
+        add_to_expression!(basecase_penalty, psd.b[:P], pslackm_n[n])
+        add_to_expression!(basecase_penalty,
+                           psd.a[:P], pslackp_n[n], pslackp_n[n])
+        add_to_expression!(basecase_penalty, psd.b[:P], pslackp_n[n])
+        add_to_expression!(basecase_penalty,
+                           psd.a[:Q], qslackm_n[n], qslackm_n[n])
+        add_to_expression!(basecase_penalty, psd.b[:Q], qslackm_n[n])
+        add_to_expression!(basecase_penalty,
+                           psd.a[:Q], qslackp_n[n], qslackp_n[n])
+        add_to_expression!(basecase_penalty, psd.b[:Q], qslackp_n[n])
+    end
+    for l = 1:nrow(psd.L), i=1:2
+        add_to_expression!(basecase_penalty,
+                           psd.a[:S], sslack_li[l,i], sslack_li[l,i])
+        add_to_expression!(basecase_penalty, psd.b[:S], sslack_li[l,i])
+    end
+    for t = 1:nrow(psd.T), i=1:2
+        add_to_expression!(basecase_penalty,
+                           psd.a[:S], sslack_ti[t,i], sslack_ti[t,i])
+        add_to_expression!(basecase_penalty, psd.b[:S], sslack_ti[t,i])
+    end
+
+    # contingency penalty
+    if isnothing(recourse_f)
+        contingency_penalty = 0.0
+    else
+        JuMP.register(m, :recourse_f, nrow(psd.G),
+                      recourse_f, recourse_g, recourse_H)
+        contingency_penalty = @NLexpression(m, recourse_f(p_g...))
+    end
+
+    # declare objective
+    @objective(m, Min, production_cost + psd.delta*basecase_penalty +
+               (1-psd.delta)*contingency_penalty)
+
+    model_data = Dict(
+        :production_cost => production_cost,
+        :basecase_penalty => basecase_penalty,
+        :contingency_penalty => contingency_penalty
+    )
+
+    # return JuMP model and internal data
+    return m, model_data
+end
+
+function create_basecase_model(psd::SCACOPFdata, NLSolver, x0::Dict;
+                               recourse_f::T=nothing,   # recourse function value
+                               recourse_g::T=nothing,   # recourse function gradient
+                               recourse_H::T=nothing,   # recourse function hessian
+            )::Tuple{Model, Dict} where {T <: Union{Nothing, Function}}
+
+    # create model
+    if isnothing(NLSolver)
+        m = Model()
+    else
+        m = Model(NLSolver)
+    end
+
+    # base case variables
     @variable(m, psd.G[g,:Plb] <= p_g[g=1:nrow(psd.G)] <= psd.G[g,:Pub],
     start=x0[:p_g][g])
+    @variable(m, psd.N[n,:Vlb] <= v_n[n=1:nrow(psd.N)] <= psd.N[n,:Vub],
+    start=x0[:v_n][n])
+    @variable(m, theta_n[n=1:nrow(psd.N)], start=x0[:theta_n][n])
+    @variable(m, p_li[l=1:nrow(psd.L), i=1:2], start=x0[:p_li][l,i])
+    @variable(m, q_li[l=1:nrow(psd.L), i=1:2], start=x0[:q_li][l,i])
+    @variable(m, p_ti[t=1:nrow(psd.T), i=1:2], start=x0[:p_ti][t,i])
+    @variable(m, q_ti[t=1:nrow(psd.T), i=1:2], start=x0[:q_ti][t,i])
+    @variable(m, psd.SSh[s,:Blb] <= b_s[s=1:nrow(psd.SSh)] <=
+    psd.SSh[s,:Bub], start=x0[:b_s][s])
     @variable(m, psd.G[g,:Qlb] <= q_g[g=1:nrow(psd.G)] <= psd.G[g,:Qub],
     start=x0[:q_g][g])
     @variable(m, c_g[g=1:nrow(psd.G)], start=x0[:c_g][g])
