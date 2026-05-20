@@ -16,7 +16,15 @@ function write_solution_block(io::IO, psd::SCACOPFdata, sol::SubproblemSolution)
 		@printf(io, "%d, %.20f, %.20f, %.20f\n", psd.N[n,:Bus],
             sol.v_n[n], 180/pi*sol.theta_n[n], bcsn[n])
 	end
-	
+
+ 	# write load section
+	@printf(io, "--load section\n")
+    @printf(io, "i, pl(MW), ql(MW))\n")
+	for n = 1:nrow(psd.loads)
+		@printf(io, "%d, %.20f, %.20f\n", psd.loads[n,:I],
+                psd.loads[n,:PL], psd.loads[n,:QL])
+	end
+
     # write generator section
 	gmap = zeros(Int, nrow(psd.generators))
 	for g = 1:nrow(psd.G)

@@ -91,6 +91,12 @@ $ julia SCACOPF.jl ./examples/500bus ./example_scacopf_solution
 
 which, in this case, would produce the same result as the command above.
 
+An additional directory argument can be added to the ACOPF and SCACOPF command pair to specify where to store the output information, including the solution, power flow constraints, objective value, power flow data, and slack variables. For example:
+
+```
+$ julia SCACOPF.jl ./examples/500bus ./example_scacopf_solution ./example_scacopf_system
+```
+
 ## Authors
 
 ExaJuGO is written by Ignacio Aravena (aravenasolis1@llnl.gov), Nai-Yuan Chiang
