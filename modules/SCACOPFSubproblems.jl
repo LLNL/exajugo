@@ -12,7 +12,8 @@ export solve_base_power_flow, solve_basecase, solve_contingency, solve_random_co
        get_primal_starting_point,
        get_full_initial_solution,
        get_full_solution,
-       write_solution
+       write_solution,
+       save_Mixed_MOI_outputs
 
 ## load external modules
 
@@ -314,6 +315,80 @@ function solve_basecase_from_model(m::JuMP.Model, psd::SCACOPFdata, model_data::
     # return solution
     return solution, m, model_data
 
+end
+
+function save_Mixed_MOI_outputs(
+    output_dir,
+    psd,
+    solution;
+    v_n,
+    theta_n,
+    p_li,
+    q_li,
+    p_ti,
+    q_ti,
+    b_s,
+    p_g,
+    q_g,
+    pslackm_n,
+    pslackp_n,
+    qslackm_n,
+    qslackp_n,
+    sslack_li,
+    sslack_ti,
+)
+    if output_dir === nothing
+        return nothing
+    end
+
+    if !ispath(output_dir)
+        mkpath(output_dir)
+    end
+
+    write_solution(output_dir, psd, solution, filename = "/Basecase_solution.txt")
+
+    write_power_flow_cons(
+        output_dir,
+        "/Basecase_power_constraints.txt",
+        v_n,
+        theta_n,
+        p_li,
+        q_li,
+        p_ti,
+        q_ti,
+        b_s,
+        p_g,
+        q_g,
+        pslackm_n,
+        pslackp_n,
+        qslackm_n,
+        qslackp_n,
+        sslack_li,
+        sslack_ti,
+        psd,
+    )
+
+    write_power_flow(
+        output_dir,
+        "/Basecase_power_flow.txt",
+        psd,
+        p_li,
+        p_ti,
+    )
+
+    write_slack(
+        output_dir,
+        "/Basecase_slacks.txt",
+        psd,
+        pslackm_n,
+        pslackp_n,
+        qslackm_n,
+        qslackp_n,
+        sslack_li,
+        sslack_ti,
+    )
+
+    return nothing
 end
 
 function solve_basecase(psd::SCACOPFdata, NLSolver;
